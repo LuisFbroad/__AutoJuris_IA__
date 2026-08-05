@@ -1,0 +1,41 @@
+# Variáveis de Ambiente e Segredos (Chaves de API, senhas)
+.env
+.env.*
+*.pem
+
+# Ambientes Virtuais do Python
+venv/
+.venv/
+env/
+ENV/
+
+# Arquivos de Cache e Compilação do Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Dados Gerados e Relatórios (Evita subir planilhas pesadas ou dados sensíveis)
+data/output/*
+!data/output/.gitkeep
+data/input/*
+!data/input/.gitkeep
+!data/input/exemplo_*
+
+# Arquivos de Log do Sistema
+logs/*.log
+*.log
+
+# Playwright e Testes do Navegador
+.playwright/
+test-results/
+playwright-report/
+
+# IDEs e Editores de Código
+.vscode/
+.idea/
+*.swp
+
+# Arquivos do Sistema Operacional
+.DS_Store
+Thumbs.db
