@@ -1,6 +1,24 @@
 import requests
 from bs4 import BeautifulSoup
+import re
 
+ESTADOS_BRASIL = {
+
+    "ALAGOAS": "AL",
+
+    "CEARÁ": "CE",
+    "CEARA": "CE",
+
+    "SERGIPE": "SE",
+
+    "RIO GRANDE DO NORTE": "RN",
+
+    "PERNAMBUCO": "PE",
+
+    "PARAÍBA": "PB",
+    "PARAIBA": "PB"
+
+}
 
 class TRF5Scraper:
 
@@ -13,6 +31,7 @@ class TRF5Scraper:
 
     def buscar_pagina(self, pagina):
 
+
         url = (
             "https://cp.trf5.jus.br/processo/rpvprec/"
             "filtroRPVPrec/cpfcnpj/porData/"
@@ -22,12 +41,21 @@ class TRF5Scraper:
         )
 
 
+        print("==============================")
+        print("ACESSANDO:")
+        print(url)
+        print("==============================")
+
+
         resposta = requests.get(
             url,
             headers={
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent":"Mozilla/5.0"
             }
         )
+
+
+        print("STATUS:", resposta.status_code)
 
 
         soup = BeautifulSoup(
@@ -40,44 +68,152 @@ class TRF5Scraper:
 
 
 
+
     def extrair_processos(self, soup):
 
-        lista = []
+
+        processos = []
+
+        encontrados = set()
 
 
-        links = soup.find_all(
-            "a",
-            class_="linkar"
+
+        tabelas = soup.find_all(
+            "table"
         )
 
 
-        for link in links:
-
-            href = link.get("href")
+        for tabela in tabelas:
 
 
-            if href and "/processo/" in href:
+            linhas = tabela.find_all(
+                "tr"
+            )
 
-                lista.append(
-                    {
-                        "numero": link.text.strip(),
-                        "link": self.base_url + href
-                    }
+
+
+            for linha in linhas:
+
+
+                colunas = linha.find_all(
+                    "td"
                 )
 
 
-        return lista
+                if len(colunas) < 3:
+                    continue
 
 
 
-    # NOVA FUNÇÃO
-    def extrair_detalhes_processo(self, url):
+                texto = " ".join(
+                    coluna.get_text(
+                        " ",
+                        strip=True
+                    )
+                    for coluna in colunas
+                )
+
+
+
+                processo = re.search(
+                    r"\d{7}-\d{2}\.\d{4}\.4\.05\.\d{4}",
+                    texto
+                )
+
+
+                if not processo:
+                    continue
+
+
+
+                numero = processo.group()
+
+
+
+                if numero in encontrados:
+                    continue
+
+
+
+                encontrados.add(numero)
+
+
+
+                # =====================
+                # PEGAR RPV
+                # =====================
+
+
+                rpv = re.search(
+                    r"RPV\d+-[A-Z]{2}",
+                    texto
+                )
+
+
+                numero_rpv = ""
+
+
+                if rpv:
+
+                    numero_rpv = rpv.group()
+
+
+
+                # =====================
+                # LINK PROCESSO
+                # =====================
+
+
+                link = (
+                    f"{self.base_url}/processo/{numero}"
+                )
+
+
+
+                dados = {
+
+                    "numero": numero,
+
+                    "rpv": numero_rpv,
+
+                    "link": link
+
+                }
+
+
+
+                print(
+                    "PROCESSO:",
+                    dados
+                )
+
+
+
+                processos.append(
+                    dados
+                )
+
+
+
+        return processos
+
+
+
+
+
+
+
+    def extrair_detalhes_processo(
+        self,
+        url
+    ):
+
 
 
         resposta = requests.get(
             url,
             headers={
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent":"Mozilla/5.0"
             }
         )
 
@@ -88,24 +224,126 @@ class TRF5Scraper:
         )
 
 
+        texto = soup.get_text(
+            "\n",
+            strip=True
+        )
+
+
+
         dados = {}
 
 
-        dados["titulo"] = soup.title.text.strip()
+
+        # =====================
+        # VARA
+        # =====================
 
 
-        # Aqui vamos procurar as tabelas
-        tabelas = soup.find_all("table")
+        vara = re.search(
+            r"VARA:\s*(.*)",
+            texto,
+            re.IGNORECASE
+        )
 
 
-        for tabela in tabelas:
-
-            texto = tabela.text.strip()
+        if vara:
 
 
-            if "RPV" in texto:
+            dados["vara"] = self.formatar_vara(
+                vara.group(1)
+            )
 
-                dados["conteudo_rpv"] = texto
+
+        else:
+
+
+            dados["vara"] = ""
+
+
+
+
+
+        # =====================
+        # BANCO
+        # =====================
+
+
+        banco = re.search(
+            r"Banco:\s*(.*?)\s*-",
+            texto
+        )
+
+
+
+        if banco:
+
+
+            dados["banco"] = banco.group(1).strip()
+
+
+        else:
+
+
+            dados["banco"] = ""
+
 
 
         return dados
+
+
+
+
+
+
+    def formatar_vara(
+        self,
+        vara
+    ):
+
+
+        vara = vara.upper()
+
+
+
+        # pega número da vara
+        numero = re.search(
+            r"(\d+)ª",
+            vara
+        )
+
+
+        if not numero:
+
+            return vara[:20]
+
+
+
+        numero_vara = numero.group(1)
+
+
+
+        sigla_estado = ""
+
+
+
+        # procura o estado
+        for estado, sigla in ESTADOS_BRASIL.items():
+
+
+            if estado in vara:
+
+                sigla_estado = sigla
+
+                break
+
+
+
+        if sigla_estado:
+
+
+            return f"{numero_vara}º VF {sigla_estado}"
+
+
+
+        return vara[:20]

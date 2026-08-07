@@ -1,127 +1,87 @@
 from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.styles import Font, Alignment
+
 
 
 class ExcelExporter:
 
 
-    def exportar(self, dados, arquivo="relatorio_rpv.xlsx"):
+    def exportar(
+        self,
+        dados,
+        arquivo="relatorio_rpv.xlsx"
+    ):
+
 
 
         wb = Workbook()
 
+
         ws = wb.active
 
-        ws.title = "Processos RPV"
+
+        ws.title = "RPV"
 
 
 
-        # =========================
-        # TÍTULO
-        # =========================
-
-        ws.merge_cells(
-            "A1:E1"
-        )
-
-
-        titulo = ws["A1"]
-
-        titulo.value = (
-            "RELATÓRIO DE PROCESSOS RPV - TRF5"
-        )
-
-
-        titulo.font = Font(
-            bold=True,
-            size=14
-        )
-
-
-        titulo.alignment = Alignment(
-            horizontal="center",
-            vertical="center"
+        ws.append(
+            [
+                "Número Processo",
+                "Vara",
+                "Banco",
+                "Nº RPV"
+            ]
         )
 
 
 
-        # =========================
-        # CABEÇALHO
-        # =========================
+        for coluna in ws[1]:
 
-
-        cabecalho = [
-            "Nº Processo",
-            "Vara",
-            "Banco",
-            "Nº RPV",
-            "Data Decisão"
-        ]
-
-
-        for coluna, valor in enumerate(cabecalho, 1):
-
-            celula = ws.cell(
-                row=3,
-                column=coluna
+            coluna.font = Font(
+                bold=True
             )
 
 
-            celula.value = valor
 
-
-            celula.font = Font(
-                bold=True,
-                color="FFFFFF"
-            )
-
-
-            celula.fill = PatternFill(
-                fill_type="solid",
-                fgColor="4F81BD"
-            )
-
-
-            celula.alignment = Alignment(
+            coluna.alignment = Alignment(
                 horizontal="center"
             )
 
 
 
-        # =========================
-        # DADOS
-        # =========================
 
 
-        linha = 4
+        linha = 2
+
 
 
         for item in dados:
 
 
-            # Número do processo com link
 
-            processo = ws.cell(
+            celula = ws.cell(
                 linha,
-                1
+                1,
+                item.get(
+                    "numero",
+                    ""
+                )
             )
 
 
-            processo.value = item.get(
-                "processo",
+            # ==========================
+            # LINK CLICÁVEL
+            # ==========================
+
+            celula.hyperlink = item.get(
+                "link",
                 ""
             )
 
 
-            processo.hyperlink = item.get(
-                "link"
-            )
+            celula.style = "Hyperlink"
 
 
-            processo.style = (
-                "Hyperlink"
-            )
 
 
 
@@ -135,6 +95,7 @@ class ExcelExporter:
             )
 
 
+
             ws.cell(
                 linha,
                 3,
@@ -145,121 +106,30 @@ class ExcelExporter:
             )
 
 
+
             ws.cell(
                 linha,
                 4,
-                str(
-                    item.get(
-                        "rpv",
-                        ""
-                    )
-                )
-            )
-
-
-            ws.cell(
-                linha,
-                5,
                 item.get(
-                    "data_decisao",
+                    "rpv",
                     ""
                 )
             )
+
 
 
             linha += 1
 
 
 
-        # =========================
-        # TABELA EXCEL
-        # =========================
 
 
-        tabela = Table(
-            displayName="TabelaRPV",
-            ref=f"A3:E{ws.max_row}"
-        )
+        ws.column_dimensions["A"].width = 35
+        ws.column_dimensions["B"].width = 20
+        ws.column_dimensions["C"].width = 25
+        ws.column_dimensions["D"].width = 20
 
 
-        estilo = TableStyleInfo(
-            name="TableStyleMedium2",
-            showRowStripes=True
-        )
-
-
-        tabela.tableStyleInfo = estilo
-
-
-        ws.add_table(
-            tabela
-        )
-
-
-
-        # =========================
-        # BORDAS
-        # =========================
-
-
-        borda = Border(
-
-            left=Side(style="thin"),
-            right=Side(style="thin"),
-            top=Side(style="thin"),
-            bottom=Side(style="thin")
-
-        )
-
-
-        for linha in ws.iter_rows():
-
-            for celula in linha:
-
-                celula.border = borda
-
-                celula.alignment = Alignment(
-                    vertical="center"
-                )
-
-
-
-        # =========================
-        # TAMANHO COLUNAS
-        # =========================
-
-
-        larguras = {
-
-            "A": 32,
-            "B": 15,
-            "C": 25,
-            "D": 25,
-            "E": 22
-
-        }
-
-
-        for coluna, tamanho in larguras.items():
-
-            ws.column_dimensions[
-                coluna
-            ].width = tamanho
-
-
-
-        # =========================
-        # CONGELAR CABEÇALHO
-        # =========================
-
-
-        ws.freeze_panes = "A4"
-
-
-
-        # =========================
-        # SALVAR
-        # =========================
 
 
         wb.save(
@@ -267,6 +137,5 @@ class ExcelExporter:
         )
 
 
-        print(
-            f"Arquivo gerado: {arquivo}"
-        )
+
+        return arquivo

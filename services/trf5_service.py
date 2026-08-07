@@ -20,7 +20,11 @@ class TRF5Service:
         processos = []
 
 
-        for pagina in range(1, limite_paginas + 1):
+
+        for pagina in range(
+            1,
+            limite_paginas + 1
+        ):
 
 
             resultado = self.scraper.buscar_pagina(
@@ -28,16 +32,33 @@ class TRF5Service:
             )
 
 
-            processos.extend(
-                resultado
-            )
+
+            for processo in resultado:
+
+
+                detalhes = self.buscar_detalhes_processo(
+                    processo["link"]
+                )
+
+
+                processo.update(
+                    detalhes
+                )
+
+
+                processos.append(
+                    processo
+                )
+
 
 
         return processos
 
 
 
-    def buscar_detalhes(
+
+
+    def buscar_detalhes_processo(
         self,
         link
     ):

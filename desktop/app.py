@@ -3,39 +3,26 @@ import customtkinter as ctk
 from desktop.telas.coleta_view import ColetaView
 
 
-
 class App(ctk.CTk):
-
 
     def __init__(self):
 
         super().__init__()
 
-
         self.title(
             "AutoJuris IA"
         )
 
-
         self.geometry(
-            "800x500"
+            "900x600"
         )
 
 
-        tela = ColetaView(
+        self.coleta_view = ColetaView(
             self
         )
 
-
-        tela.pack(
-            fill="both",
-            expand=True
+        self.coleta_view.pack(
+            expand=True,
+            fill="both"
         )
-
-
-
-if __name__ == "__main__":
-
-    app = App()
-
-    app.mainloop()
