@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import re
+from scrapers.trf5_scraper import ESTADOS_BRASIL
 
 
 class ProcessoScraper:
@@ -90,43 +91,28 @@ class ProcessoScraper:
         return dados
 
     def formatar_vara(self, vara):
+        if not vara:
+            return ""
 
-        numero = re.search(
-            r"(\d+)",
-            vara
-        )
+        vara_limpa = vara.strip().upper()
 
+        # 1. Tenta extrair o número da vara (funciona para 33ª, 33a, 33º, 33. ou apenas 33)
+        match_numero = re.search(r"(\d+)\s*(ª|a|º|\.)?", vara_limpa)
+        
+        # 2. Procura a sigla do estado no texto
+        sigla_estado = ""
+        for termo, sigla in ESTADOS_BRASIL.items():
+            if termo in vara_limpa:
+                sigla_estado = sigla
+                break
 
-        if numero:
-            numero_vara = numero.group(1)
-        else:
-            numero_vara = ""
+        # Se encontrou tanto o número quanto o estado, retorna o padrão limpo: "33º VF PE"
+        if match_numero and sigla_estado:
+            numero_vara = match_numero.group(1)
+            return f"{numero_vara}º VF {sigla_estado}"
 
-
-
-        if "Cear" in vara:
-            estado = "CE"
-
-        elif "Alago" in vara:
-            estado = "AL"
-
-        elif "Pernamb" in vara:
-            estado = "PE"
-
-        elif "Paraíb" in vara:
-            estado = "PB"
-
-        elif "Sergip" in vara:
-            estado = "SE"
-
-        elif "Rio Grande do Norte" in vara:
-            estado = "RN"
-
-        else:
-            estado = ""
-
-
-
-        return f"{numero_vara}º VF {estado}"
-
-
+        # Caso não ache o padrão exato, remove termos pesados mantendo a legibilidade
+        vara_formatada = re.sub(r"\bVARA\s+FEDERAL\s+(DE\s+)?", "VF ", vara_limpa)
+        vara_formatada = re.sub(r"\bVARA\s+", "VF ", vara_formatada)
+        
+        return vara_formatada.strip()
