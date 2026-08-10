@@ -1,4 +1,4 @@
-# Variáveis de Ambiente e Segredos (Chaves de API, senhas)
+# Variáveis de Ambiente e Segredos
 .env
 .env.*
 *.pem
@@ -9,18 +9,20 @@ venv/
 env/
 ENV/
 
-# Arquivos de Cache e Compilação do Python
+# Arquivos de Cache e Compilação
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
 
-# Dados Gerados e Relatórios (Evita subir planilhas pesadas ou dados sensíveis)
-data/output/*
-!data/output/.gitkeep
-data/input/*
-!data/input/.gitkeep
-!data/input/exemplo_*
+# Dados Locais e Relatórios (Ajustado para a estrutura 'dados/' e 'exports/')
+dados/*.xlsx
+!dados/.gitkeep
+exports/*.xlsx
+!exports/.gitkeep
+template_html/*
+!template_html/.gitkeep
 
 # Arquivos de Log do Sistema
 logs/*.log
