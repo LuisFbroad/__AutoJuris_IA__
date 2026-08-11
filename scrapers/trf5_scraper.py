@@ -1,43 +1,34 @@
+import re
+import time
 import requests
 from bs4 import BeautifulSoup
-import re
+from scrapers.processo_scraper import ProcessoScraper
 
-ESTADOS_BRASIL = {
-    # Pernambuco
-    "PERNAMBUCO": "PE", 
-    "RECIFE": "PE", 
-    "CABO DE SANTO AGOSTINHO": "PE", 
-    "CABO": "PE",
-    "- PE": "PE", 
-    " PE": "PE",
-    
-    # Alagoas
-    "ALAGOAS": "AL", "MACEIÓ": "AL", "MACEIO": "AL", "- AL": "AL", " AL": "AL",
-    
-    # Ceará
-    "CEARÁ": "CE", "CEARA": "CE", "FORTALEZA": "CE", "- CE": "CE", " CE": "CE",
-    
-    # Sergipe
-    "SERGIPE": "SE", "ARACAJU": "SE", "- SE": "SE", " SE": "SE",
-    
-    # Rio Grande do Norte
-    "RIO GRANDE DO NORTE": "RN", "NATAL": "RN", "- RN": "RN", " RN": "RN",
-    
-    # Paraíba
-    "PARAÍBA": "PB", "PARAIBA": "PB", "JOÃO PESSOA": "PB", "JOAO PESSOA": "PB", "- PB": "PB", " PB": "PB"
-}
 
 class TRF5Scraper:
 
-
-    def __init__(self):
-
+    def __init__(self, max_threads=10):
         self.base_url = "https://cp.trf5.jus.br"
+        self._tempo_inicio = None
+        
+        # Conexão HTTP Persistente (Keep-Alive)
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
 
-
+        # Instancia o scraper individual reutilizando a mesma sessão
+        self.processo_scraper = ProcessoScraper(session=self.session, max_threads=max_threads)
 
     def buscar_pagina(self, pagina):
-
+        """Busca uma página da listagem do TRF5 e enriquece os dados dos processos em lote."""
+        
+        # Marca o tempo inicial na primeira página da busca
+        if pagina == 1 or self._tempo_inicio is None:
+            self._tempo_inicio = time.perf_counter()
+            print("\n" + "=" * 45)
+            print("⏱️ CRONÔMETRO DE COLETA INICIADO")
+            print("=" * 45)
 
         url = (
             "https://cp.trf5.jus.br/processo/rpvprec/"
@@ -47,246 +38,77 @@ class TRF5Scraper:
             f"{pagina}"
         )
 
+        print(f"==============================\nACESSANDO PÁGINA {pagina}: {url}\n==============================")
 
-        print("==============================")
-        print("ACESSANDO:")
-        print(url)
-        print("==============================")
+        try:
+            resposta = self.session.get(url, timeout=15)
+            print("STATUS:", resposta.status_code)
+            if resposta.status_code != 200:
+                return []
 
+            soup = BeautifulSoup(resposta.text, "html.parser")
+            processos_basicos = self.extrair_processos(soup)
 
-        resposta = requests.get(
-            url,
-            headers={
-                "User-Agent":"Mozilla/5.0"
-            }
-        )
+            print(f"Encontrados {len(processos_basicos)} processos na página {pagina}. Coletando detalhes...")
 
+            # Executa a busca paralela dos detalhes para todos os processos encontrados
+            processos_completos = self.processo_scraper.extrair_detalhes_em_lote(processos_basicos)
+            
+            # Imprime o tempo decorrido atualizado no terminal
+            tempo_parcial = time.perf_counter() - self._tempo_inicio
+            print(f"⏱️ Tempo acumulado até a página {pagina}: {tempo_parcial:.2f} segundos\n")
 
-        print("STATUS:", resposta.status_code)
+            return processos_completos
 
-
-        soup = BeautifulSoup(
-            resposta.text,
-            "html.parser"
-        )
-
-
-        return self.extrair_processos(soup)
-
-
-
+        except Exception as e:
+            print(f"❌ Erro ao buscar página {pagina}: {e}")
+            return []
 
     def extrair_processos(self, soup):
-
-
+        """Varre a tabela da listagem e extrai os números, RPVs e links básicos."""
         processos = []
-
         encontrados = set()
 
-
-
-        tabelas = soup.find_all(
-            "table"
-        )
-
+        tabelas = soup.find_all("table")
 
         for tabela in tabelas:
-
-
-            linhas = tabela.find_all(
-                "tr"
-            )
-
-
+            linhas = tabela.find_all("tr")
 
             for linha in linhas:
-
-
-                colunas = linha.find_all(
-                    "td"
-                )
-
-
+                colunas = linha.find_all("td")
                 if len(colunas) < 3:
                     continue
 
+                texto = " ".join(coluna.get_text(" ", strip=True) for coluna in colunas)
 
-
-                texto = " ".join(
-                    coluna.get_text(
-                        " ",
-                        strip=True
-                    )
-                    for coluna in colunas
-                )
-
-
-
-                processo = re.search(
-                    r"\d{7}-\d{2}\.\d{4}\.4\.05\.\d{4}",
-                    texto
-                )
-
-
+                processo = re.search(r"\d{7}-\d{2}\.\d{4}\.4\.05\.\d{4}", texto)
                 if not processo:
                     continue
 
-
-
                 numero = processo.group()
-
-
-
                 if numero in encontrados:
                     continue
 
-
-
                 encontrados.add(numero)
 
+                rpv = re.search(r"RPV\d+-[A-Z]{2}", texto)
+                numero_rpv = rpv.group() if rpv else ""
 
+                link = f"{self.base_url}/processo/{numero}"
 
-                # =====================
-                # PEGAR RPV
-                # =====================
-
-
-                rpv = re.search(
-                    r"RPV\d+-[A-Z]{2}",
-                    texto
-                )
-
-
-                numero_rpv = ""
-
-
-                if rpv:
-
-                    numero_rpv = rpv.group()
-
-
-
-                # =====================
-                # LINK PROCESSO
-                # =====================
-
-
-                link = (
-                    f"{self.base_url}/processo/{numero}"
-                )
-
-
-
-                dados = {
-
+                processos.append({
                     "numero": numero,
-
                     "rpv": numero_rpv,
-
                     "link": link
-
-                }
-
-
-
-                print(
-                    "PROCESSO:",
-                    dados
-                )
-
-
-
-                processos.append(
-                    dados
-                )
-
-
+                })
 
         return processos
 
-
-    def extrair_detalhes_processo(self, url):
-        resposta = requests.get(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0"
-            }
-        )
-
-        soup = BeautifulSoup(
-            resposta.text,
-            "html.parser"
-        )
-
-        texto = soup.get_text(
-            "\n",
-            strip=True
-        )
-
-        dados = {}
-
-        # =====================
-        # VARA
-        # =====================
-        vara = re.search(
-            r"VARA:\s*(.*)",
-            texto,
-            re.IGNORECASE
-        )
-
-        if vara:
-            # Pega apenas a primeira linha do resultado para não puxar elementos HTML vizinhos
-            nome_vara = vara.group(1).split("\n")[0].strip()
-            dados["vara"] = self.formatar_vara(nome_vara)
+    def extrair_detalhes_processo(self, url_ou_processo):
+        """Método de compatibilidade com chamadas antigas."""
+        if isinstance(url_ou_processo, dict):
+            url = url_ou_processo.get("link", "")
         else:
-            dados["vara"] = ""
+            url = str(url_ou_processo)
 
-        # =====================
-        # BANCO
-        # =====================
-        banco = re.search(
-            r"Banco:\s*(.*?)\s*-",
-            texto,
-            re.IGNORECASE
-        )
-
-        if banco:
-            dados["banco"] = banco.group(1).strip()
-        else:
-            # Busca secundária caso o formato seja "Banco: Caixa Econômica Federal" sem o traço no final
-            banco_alt = re.search(
-                r"Banco:\s*([^\n\r]+)",
-                texto,
-                re.IGNORECASE
-            )
-            dados["banco"] = banco_alt.group(1).strip() if banco_alt else ""
-
-        return dados
-
-
-    def formatar_vara(self, vara):
-        if not vara:
-            return ""
-
-        vara_limpa = vara.strip().upper()
-
-        # 1. Extrai o número da vara (34ª, 34a, 34º, 34.)
-        match_numero = re.search(r"(\d+)\s*(ª|a|º|\.)?", vara_limpa)
-
-        # 2. Mapeia a sigla do estado via dicionário
-        sigla_estado = ""
-        for termo, sigla in ESTADOS_BRASIL.items():
-            if termo in vara_limpa:
-                sigla_estado = sigla
-                break
-
-        # Se encontrou o número e o estado/cidade, gera o padrão curto "34º VF PE"
-        if match_numero and sigla_estado:
-            numero_vara = match_numero.group(1)
-            return f"{numero_vara}º VF {sigla_estado}"
-
-        # Fallback para padronização geral caso não encontre no dicionário
-        vara_formatada = re.sub(r"\bVARA\s+FEDERAL\s+(DE|DO|DA\s+)?", "VF ", vara_limpa)
-        vara_formatada = re.sub(r"\bVARA\s+", "VF ", vara_formatada)
-
-        return vara_formatada.strip()
+        return self.processo_scraper.extrair_detalhes_processo(url)

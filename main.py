@@ -1,4 +1,5 @@
 import os
+import time
 import customtkinter as ctk
 
 from desktop.telas.coleta_view import ColetaView
@@ -28,5 +29,11 @@ class App(ctk.CTk):
 
 
 if __name__ == "__main__":
+    inicio_app = time.perf_counter()
+    
+    print("🚀 AutoJuris IA iniciado...")
     app = App()
     app.mainloop()
+    
+    tempo_sessao = time.perf_counter() - inicio_app
+    print(f"\n👋 Aplicação encerrada. Tempo total da sessão: {tempo_sessao:.2f} segundos")
