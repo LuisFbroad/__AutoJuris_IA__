@@ -1,43 +1,14 @@
-# Variáveis de Ambiente e Segredos
 .env
 .env.*
-*.pem
+!.env.example
 
-# Ambientes Virtuais do Python
 venv/
 .venv/
-env/
-ENV/
 
-# Arquivos de Cache e Compilação
 __pycache__/
-**/__pycache__/
 *.py[cod]
-*$py.class
-.pytest_cache/
 
-# Dados Locais e Relatórios (Ajustado para a estrutura 'dados/' e 'exports/')
 dados/*.xlsx
-!dados/.gitkeep
 exports/*.xlsx
-!exports/.gitkeep
-template_html/*
-!template_html/.gitkeep
 
-# Arquivos de Log do Sistema
-logs/*.log
 *.log
-
-# Playwright e Testes do Navegador
-.playwright/
-test-results/
-playwright-report/
-
-# IDEs e Editores de Código
-.vscode/
-.idea/
-*.swp
-
-# Arquivos do Sistema Operacional
-.DS_Store
-Thumbs.db
