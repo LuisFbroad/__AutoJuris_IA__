@@ -1,9 +1,9 @@
 import os
 import re
+import sys
 import time
 
 import requests
-
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -11,20 +11,128 @@ from scrapers.processo_scraper import ProcessoScraper
 
 
 # ============================================================
-# CONFIGURAÇÃO DO AMBIENTE
+# CONFIGURAÇÃO DO .ENV
 # ============================================================
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.abspath(__file__)
-    )
-)
+def obter_caminho_env():
 
-load_dotenv(
-    os.path.join(
-        BASE_DIR,
+    """
+    Localiza o arquivo .env.
+
+    Desenvolvimento:
+        __AutoJuris_IA__\.env
+
+    Executável:
+        pasta onde o AutoJurisIA.exe está instalado\.env
+    """
+
+    if getattr(sys, "frozen", False):
+
+        # Quando estiver rodando como EXE
+        pasta_base = os.path.dirname(
+            sys.executable
+        )
+
+    else:
+
+        # Quando estiver rodando:
+        # py main.py
+        #
+        # Este arquivo está em:
+        # scrapers/trf5_scraper.py
+        #
+        # O .env está em:
+        # __AutoJuris_IA__/.env
+
+        pasta_scrapers = os.path.dirname(
+            os.path.abspath(__file__)
+        )
+
+        pasta_base = os.path.dirname(
+            pasta_scrapers
+        )
+
+    return os.path.join(
+        pasta_base,
         ".env"
     )
+
+
+# ============================================================
+# CARREGAR .ENV
+# ============================================================
+
+CAMINHO_ENV = obter_caminho_env()
+
+print(
+    "=========================================="
+)
+
+print(
+    "CARREGANDO CONFIGURAÇÕES DO TRF5"
+)
+
+print(
+    f"Arquivo .env:"
+)
+
+print(
+    CAMINHO_ENV
+)
+
+print(
+    "=========================================="
+)
+
+
+if not os.path.exists(CAMINHO_ENV):
+
+    raise RuntimeError(
+        "Arquivo .env não encontrado.\n\n"
+        f"Caminho procurado:\n{CAMINHO_ENV}"
+    )
+
+
+load_dotenv(
+    CAMINHO_ENV
+)
+
+
+# ============================================================
+# CNPJ
+# ============================================================
+
+TRF5_CNPJ = os.getenv(
+    "TRF5_CNPJ"
+)
+
+
+if not TRF5_CNPJ:
+
+    raise RuntimeError(
+        "TRF5_CNPJ não encontrado no arquivo .env.\n\n"
+        f"Caminho procurado:\n{CAMINHO_ENV}"
+    )
+
+
+# Remove caracteres que eventualmente tenham sido colocados
+# no CNPJ, como pontos, barras e hífen.
+TRF5_CNPJ = re.sub(
+    r"\D",
+    "",
+    TRF5_CNPJ
+)
+
+
+if not TRF5_CNPJ:
+
+    raise RuntimeError(
+        "O TRF5_CNPJ encontrado no .env está vazio ou inválido."
+    )
+
+
+print(
+    "TRF5_CNPJ carregado com sucesso."
 )
 
 
@@ -46,52 +154,30 @@ class TRF5Scraper:
         self._tempo_inicio = None
 
         # ----------------------------------------------------
-        # CNPJ PROTEGIDO
+        # CNPJ
         # ----------------------------------------------------
 
-        self.cnpj = os.getenv(
-            "TRF5_CNPJ"
-        )
-
-        if not self.cnpj:
-
-            raise RuntimeError(
-                "TRF5_CNPJ não foi configurado. "
-                "Crie um arquivo .env na raiz do projeto "
-                "contendo TRF5_CNPJ=SEU_CNPJ."
-            )
-
-        # Remove caracteres que eventualmente
-        # sejam colocados no .env
-        self.cnpj = re.sub(
-            r"\D",
-            "",
-            self.cnpj
-        )
-
-        if len(self.cnpj) != 14:
-
-            raise RuntimeError(
-                "O TRF5_CNPJ configurado no .env "
-                "não possui 14 dígitos."
-            )
+        self.cnpj = TRF5_CNPJ
 
         # ----------------------------------------------------
-        # SESSÃO HTTP
+        # CONEXÃO HTTP
         # ----------------------------------------------------
 
         self.session = requests.Session()
 
         self.session.headers.update({
-            "User-Agent": (
+
+            "User-Agent":
                 "Mozilla/5.0 "
                 "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36"
-            )
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/151.0 Safari/537.36"
+
         })
 
         # ----------------------------------------------------
-        # SCRAPER DE PROCESSOS
+        # PROCESSO SCRAPER
         # ----------------------------------------------------
 
         self.processo_scraper = ProcessoScraper(
@@ -150,14 +236,16 @@ class TRF5Scraper:
             f"{pagina}"
         )
 
-        # IMPORTANTE:
-        # Não imprimimos o CNPJ no terminal.
         print(
             "=============================="
         )
 
         print(
-            f"ACESSANDO PÁGINA {pagina}"
+            f"ACESSANDO PÁGINA {pagina}:"
+        )
+
+        print(
+            url
         )
 
         print(
@@ -165,7 +253,7 @@ class TRF5Scraper:
         )
 
         # ----------------------------------------------------
-        # REQUISIÇÃO
+        # REQUEST
         # ----------------------------------------------------
 
         try:
@@ -182,6 +270,11 @@ class TRF5Scraper:
 
             if resposta.status_code != 200:
 
+                print(
+                    f"❌ Página {pagina} retornou "
+                    f"status {resposta.status_code}"
+                )
+
                 return []
 
             # ------------------------------------------------
@@ -193,6 +286,10 @@ class TRF5Scraper:
                 "html.parser"
             )
 
+            # ------------------------------------------------
+            # PROCESSOS BÁSICOS
+            # ------------------------------------------------
+
             processos_basicos = (
                 self.extrair_processos(
                     soup
@@ -202,14 +299,26 @@ class TRF5Scraper:
             print(
                 f"Encontrados "
                 f"{len(processos_basicos)} "
-                f"processos na página "
-                f"{pagina}. "
-                f"Coletando detalhes..."
+                f"processos na página {pagina}."
             )
 
             # ------------------------------------------------
             # DETALHES
             # ------------------------------------------------
+
+            if not processos_basicos:
+
+                tempo_parcial = (
+                    time.perf_counter()
+                    - self._tempo_inicio
+                )
+
+                print(
+                    f"⏱️ Tempo acumulado: "
+                    f"{tempo_parcial:.2f} segundos"
+                )
+
+                return []
 
             processos_completos = (
                 self.processo_scraper
@@ -235,11 +344,20 @@ class TRF5Scraper:
 
             return processos_completos
 
+        except requests.RequestException as e:
+
+            print(
+                f"❌ Erro HTTP ao buscar "
+                f"página {pagina}: {e}"
+            )
+
+            return []
+
         except Exception as e:
 
             print(
-                f"❌ Erro ao buscar página "
-                f"{pagina}: {e}"
+                f"❌ Erro ao buscar "
+                f"página {pagina}: {e}"
             )
 
             return []
@@ -254,8 +372,11 @@ class TRF5Scraper:
     ):
 
         """
-        Varre as tabelas da listagem do TRF5
-        e extrai processos, RPVs e links.
+        Varre as tabelas da listagem e extrai:
+
+        - número do processo
+        - RPV
+        - link
         """
 
         processos = []
@@ -266,11 +387,19 @@ class TRF5Scraper:
             "table"
         )
 
+        # ----------------------------------------------------
+        # TABELAS
+        # ----------------------------------------------------
+
         for tabela in tabelas:
 
             linhas = tabela.find_all(
                 "tr"
             )
+
+            # ------------------------------------------------
+            # LINHAS
+            # ------------------------------------------------
 
             for linha in linhas:
 
@@ -279,19 +408,21 @@ class TRF5Scraper:
                 )
 
                 if len(colunas) < 3:
-
                     continue
 
                 texto = " ".join(
+
                     coluna.get_text(
                         " ",
                         strip=True
                     )
+
                     for coluna in colunas
+
                 )
 
                 # ------------------------------------------------
-                # PROCESSO
+                # NÚMERO PROCESSO
                 # ------------------------------------------------
 
                 processo = re.search(
@@ -300,13 +431,15 @@ class TRF5Scraper:
                 )
 
                 if not processo:
-
                     continue
 
                 numero = processo.group()
 
-                if numero in encontrados:
+                # ------------------------------------------------
+                # DUPLICADOS
+                # ------------------------------------------------
 
+                if numero in encontrados:
                     continue
 
                 encontrados.add(
@@ -338,15 +471,19 @@ class TRF5Scraper:
                 )
 
                 processos.append({
+
                     "numero": numero,
+
                     "rpv": numero_rpv,
+
                     "link": link
+
                 })
 
         return processos
 
     # ========================================================
-    # COMPATIBILIDADE
+    # DETALHES DO PROCESSO
     # ========================================================
 
     def extrair_detalhes_processo(
@@ -355,8 +492,8 @@ class TRF5Scraper:
     ):
 
         """
-        Método de compatibilidade com
-        chamadas antigas.
+        Método de compatibilidade
+        com chamadas antigas.
         """
 
         if isinstance(
@@ -365,8 +502,7 @@ class TRF5Scraper:
         ):
 
             url = (
-                url_ou_processo
-                .get(
+                url_ou_processo.get(
                     "link",
                     ""
                 )

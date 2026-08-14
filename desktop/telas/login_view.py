@@ -5,12 +5,7 @@ from auth.auth_service import autenticar
 
 class LoginView(ctk.CTkFrame):
 
-    def __init__(
-        self,
-        parent,
-        on_login
-    ):
-
+    def __init__(self, parent, on_login):
         super().__init__(
             parent,
             corner_radius=0
@@ -19,15 +14,8 @@ class LoginView(ctk.CTkFrame):
         self.parent = parent
         self.on_login = on_login
 
-        self.grid_columnconfigure(
-            0,
-            weight=1
-        )
-
-        self.grid_rowconfigure(
-            0,
-            weight=1
-        )
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
         self.criar_interface()
 
@@ -146,7 +134,7 @@ class LoginView(ctk.CTkFrame):
         )
 
         # ----------------------------------------------------
-        # ENTRAR
+        # BOTÃO ENTRAR
         # ----------------------------------------------------
 
         self.botao_entrar = ctk.CTkButton(
@@ -165,12 +153,17 @@ class LoginView(ctk.CTkFrame):
         )
 
         # ----------------------------------------------------
-        # ENTER NO CAMPO SENHA
+        # ENTER
         # ----------------------------------------------------
 
         self.senha_entry.bind(
             "<Return>",
             lambda event: self.entrar()
+        )
+
+        self.usuario_entry.bind(
+            "<Return>",
+            lambda event: self.senha_entry.focus()
         )
 
         self.usuario_entry.focus()
@@ -192,38 +185,75 @@ class LoginView(ctk.CTkFrame):
 
             return
 
-        if autenticar(
-            usuario,
-            senha
-        ):
+        # Desabilita o botão enquanto processa
+        self.botao_entrar.configure(
+            state="disabled"
+        )
 
-            self.mensagem.configure(
-                text=""
+        try:
+
+            resultado = autenticar(
+                usuario,
+                senha
             )
 
-            self.on_login(
-                usuario
-            )
+            if resultado:
 
-        else:
+                self.mensagem.configure(
+                    text=""
+                )
+
+                print("================================")
+                print("LOGIN REALIZADO COM SUCESSO")
+                print(f"Usuário: {usuario}")
+                print("Chamando tela principal...")
+                print("================================")
+
+                # IMPORTANTE:
+                # A troca para a tela principal
+                # será feita pelo main.py
+                self.on_login(usuario)
+
+            else:
+
+                print("Login recusado.")
+
+                self.mostrar_mensagem(
+                    "Usuário ou senha inválidos."
+                )
+
+                self.senha_entry.delete(
+                    0,
+                    "end"
+                )
+
+                self.senha_entry.focus()
+
+                self.botao_entrar.configure(
+                    state="normal"
+                )
+
+        except Exception as e:
+
+            print("================================")
+            print("ERRO DURANTE O LOGIN")
+            print(type(e).__name__)
+            print(str(e))
+            print("================================")
 
             self.mostrar_mensagem(
-                "Usuário ou senha inválidos."
+                f"Erro ao realizar login:\n{e}"
             )
 
-            self.senha_entry.delete(
-                0,
-                "end"
+            self.botao_entrar.configure(
+                state="normal"
             )
 
     # ========================================================
     # MENSAGEM
     # ========================================================
 
-    def mostrar_mensagem(
-        self,
-        mensagem
-    ):
+    def mostrar_mensagem(self, mensagem):
 
         self.mensagem.configure(
             text=mensagem

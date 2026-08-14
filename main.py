@@ -1,32 +1,88 @@
 import os
-import time
+import sys
+import traceback
+from tkinter import messagebox
 
 import customtkinter as ctk
-from dotenv import load_dotenv
-
-from desktop.telas.login_view import LoginView
-from desktop.telas.coleta_view import ColetaView
 
 
 # ============================================================
-# CONFIGURAÇÃO
+# CAMINHO DE RECURSOS
+# ============================================================
+
+def obter_caminho_recurso(caminho_relativo):
+    """
+    Retorna o caminho absoluto de um recurso.
+
+    Funciona em:
+        - execução normal pelo Python
+        - executável criado pelo PyInstaller
+    """
+
+    if getattr(sys, "frozen", False):
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = os.path.dirname(
+            os.path.abspath(__file__)
+        )
+
+    return os.path.join(
+        base_dir,
+        caminho_relativo
+    )
+
+
+# ============================================================
+# CONFIGURAÇÃO DO PYTHONPATH
 # ============================================================
 
 BASE_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
 
-
-# ============================================================
-# CARREGAR .ENV
-# ============================================================
-
-load_dotenv(
-    os.path.join(
-        BASE_DIR,
-        ".env"
+if BASE_DIR not in sys.path:
+    sys.path.insert(
+        0,
+        BASE_DIR
     )
-)
+
+
+# ============================================================
+# IMPORTS
+# ============================================================
+
+try:
+
+    from desktop.telas.login_view import LoginView
+    from desktop.telas.coleta_view import ColetaView
+
+except Exception:
+
+    erro = traceback.format_exc()
+
+    print(
+        "=========================================="
+    )
+
+    print(
+        "ERRO AO IMPORTAR AS TELAS"
+    )
+
+    print(
+        erro
+    )
+
+    print(
+        "=========================================="
+    )
+
+    messagebox.showerror(
+        "Erro ao iniciar AutoJuris IA",
+        "Não foi possível carregar as telas do sistema.\n\n"
+        + erro
+    )
+
+    sys.exit(1)
 
 
 # ============================================================
@@ -40,7 +96,7 @@ class App(ctk.CTk):
         super().__init__()
 
         # ----------------------------------------------------
-        # CONFIGURAÇÕES DA JANELA
+        # CONFIGURAÇÃO DA JANELA
         # ----------------------------------------------------
 
         self.title(
@@ -48,45 +104,84 @@ class App(ctk.CTk):
         )
 
         self.geometry(
-            "900x600"
+            "1100x700"
         )
 
         self.minsize(
-            800,
-            500
+            900,
+            600
+        )
+
+        # Centraliza a janela
+        self.centralizar_janela()
+
+        # Usuário
+        self.usuario_logado = None
+
+        # Views
+        self.login_view = None
+        self.coleta_view = None
+
+        # ----------------------------------------------------
+        # FECHAMENTO
+        # ----------------------------------------------------
+
+        self.protocol(
+            "WM_DELETE_WINDOW",
+            self.fechar_aplicacao
         )
 
         # ----------------------------------------------------
-        # ÍCONE
+        # INICIA LOGIN
         # ----------------------------------------------------
 
-        caminho_ico = os.path.join(
-            BASE_DIR,
-            "assets",
-            "GAGC_logo.ico"
+        self.mostrar_login()
+
+    # ========================================================
+    # CENTRALIZAR JANELA
+    # ========================================================
+
+    def centralizar_janela(self):
+
+        self.update_idletasks()
+
+        largura = 1100
+        altura = 700
+
+        largura_tela = self.winfo_screenwidth()
+        altura_tela = self.winfo_screenheight()
+
+        x = (
+            largura_tela - largura
+        ) // 2
+
+        y = (
+            altura_tela - altura
+        ) // 2
+
+        self.geometry(
+            f"{largura}x{altura}+{x}+{y}"
         )
 
-        if os.path.exists(
-            caminho_ico
-        ):
+    # ========================================================
+    # LIMPAR JANELA
+    # ========================================================
+
+    def limpar_janela(self):
+
+        for widget in self.winfo_children():
 
             try:
 
-                self.iconbitmap(
-                    caminho_ico
-                )
+                widget.destroy()
 
             except Exception as e:
 
                 print(
-                    f"Erro ao carregar ícone: {e}"
+                    f"Erro ao destruir widget: {e}"
                 )
 
-        # ----------------------------------------------------
-        # MOSTRAR LOGIN
-        # ----------------------------------------------------
-
-        self.mostrar_login()
+        self.update_idletasks()
 
     # ========================================================
     # LOGIN
@@ -94,21 +189,56 @@ class App(ctk.CTk):
 
     def mostrar_login(self):
 
-        self.limpar_tela()
-
-        self.title(
-            "AutoJuris IA - Login"
+        print(
+            "Carregando tela de login..."
         )
 
-        self.login_view = LoginView(
-            self,
-            self.login_realizado
-        )
+        try:
 
-        self.login_view.pack(
-            expand=True,
-            fill="both"
-        )
+            self.limpar_janela()
+
+            self.login_view = LoginView(
+                self,
+                self.login_realizado
+            )
+
+            self.login_view.pack(
+                expand=True,
+                fill="both"
+            )
+
+            self.update_idletasks()
+
+            print(
+                "Tela de login carregada."
+            )
+
+        except Exception as e:
+
+            erro = traceback.format_exc()
+
+            print(
+                "=========================================="
+            )
+
+            print(
+                "ERRO AO CARREGAR LOGIN"
+            )
+
+            print(
+                erro
+            )
+
+            print(
+                "=========================================="
+            )
+
+            messagebox.showerror(
+                "Erro",
+                "Erro ao carregar a tela de login:\n\n"
+                f"{e}\n\n"
+                f"{erro}"
+            )
 
     # ========================================================
     # LOGIN REALIZADO
@@ -120,45 +250,151 @@ class App(ctk.CTk):
     ):
 
         print(
-            f"Usuário autenticado: {usuario}"
+            "=========================================="
+        )
+
+        print(
+            "LOGIN REALIZADO"
+        )
+
+        print(
+            f"Usuário: {usuario}"
+        )
+
+        print(
+            "Iniciando carregamento da tela principal..."
+        )
+
+        print(
+            "=========================================="
         )
 
         self.usuario_logado = usuario
 
-        self.mostrar_sistema()
+        # ----------------------------------------------------
+        # NÃO destrói o login imediatamente.
+        # Primeiro tenta criar a tela principal.
+        # ----------------------------------------------------
 
-    # ========================================================
-    # ABRIR SISTEMA
-    # ========================================================
+        nova_tela = None
 
-    def mostrar_sistema(self):
+        try:
 
-        self.limpar_tela()
+            print(
+                "Criando ColetaView..."
+            )
 
-        self.title(
-            f"AutoJuris IA - {self.usuario_logado}"
+            nova_tela = ColetaView(
+                self
+            )
+
+            print(
+                "ColetaView criada com sucesso."
+            )
+
+            nova_tela.pack(
+                expand=True,
+                fill="both",
+                padx=15,
+                pady=15
+            )
+
+            print(
+                "ColetaView adicionada à janela."
+            )
+
+            self.update_idletasks()
+
+        except Exception as e:
+
+            erro = traceback.format_exc()
+
+            print(
+                "=========================================="
+            )
+
+            print(
+                "ERRO AO CARREGAR TELA PRINCIPAL"
+            )
+
+            print(
+                erro
+            )
+
+            print(
+                "=========================================="
+            )
+
+            # ------------------------------------------------
+            # Se falhou, não destrói o login.
+            # ------------------------------------------------
+
+            if nova_tela is not None:
+
+                try:
+                    nova_tela.destroy()
+                except:
+                    pass
+
+            messagebox.showerror(
+                "Erro ao carregar a tela principal",
+                "Não foi possível carregar a tela principal.\n\n"
+                f"Erro:\n{e}\n\n"
+                f"Detalhes técnicos:\n{erro}"
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # Somente agora removemos o login.
+        # ----------------------------------------------------
+
+        print(
+            "Removendo tela de login..."
         )
 
-        self.coleta_view = ColetaView(
-            self
+        if self.login_view is not None:
+
+            try:
+
+                self.login_view.destroy()
+
+            except Exception as e:
+
+                print(
+                    f"Erro ao remover login: {e}"
+                )
+
+        self.login_view = None
+        self.coleta_view = nova_tela
+
+        self.update_idletasks()
+
+        print(
+            "=========================================="
         )
 
-        self.coleta_view.pack(
-            expand=True,
-            fill="both",
-            padx=15,
-            pady=15
+        print(
+            "TELA PRINCIPAL CARREGADA COM SUCESSO"
+        )
+
+        print(
+            "=========================================="
         )
 
     # ========================================================
-    # LIMPAR JANELA
+    # FECHAR
     # ========================================================
 
-    def limpar_tela(self):
+    def fechar_aplicacao(self):
 
-        for widget in self.winfo_children():
+        try:
 
-            widget.destroy()
+            self.destroy()
+
+        except Exception:
+
+            sys.exit(0)
 
 
 # ============================================================
@@ -167,23 +403,59 @@ class App(ctk.CTk):
 
 if __name__ == "__main__":
 
-    inicio_app = time.perf_counter()
+    try:
 
-    print(
-        "🚀 AutoJuris IA iniciado..."
-    )
+        # ----------------------------------------------------
+        # CONFIGURAÇÕES CUSTOMTKINTER
+        # ----------------------------------------------------
 
-    app = App()
+        ctk.set_appearance_mode(
+            "System"
+        )
 
-    app.mainloop()
+        ctk.set_default_color_theme(
+            "blue"
+        )
 
-    tempo_sessao = (
-        time.perf_counter()
-        - inicio_app
-    )
+        # ----------------------------------------------------
+        # CRIA APP
+        # ----------------------------------------------------
 
-    print(
-        "\n👋 Aplicação encerrada. "
-        f"Tempo total da sessão: "
-        f"{tempo_sessao:.2f} segundos"
-    )
+        app = App()
+
+        # ----------------------------------------------------
+        # LOOP PRINCIPAL
+        # ----------------------------------------------------
+
+        app.mainloop()
+
+    except Exception:
+
+        erro = traceback.format_exc()
+
+        print(
+            "=========================================="
+        )
+
+        print(
+            "ERRO FATAL DO APLICATIVO"
+        )
+
+        print(
+            erro
+        )
+
+        print(
+            "=========================================="
+        )
+
+        try:
+
+            messagebox.showerror(
+                "Erro fatal - AutoJuris IA",
+                erro
+            )
+
+        except:
+
+            pass
