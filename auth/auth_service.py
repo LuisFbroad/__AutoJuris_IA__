@@ -8,20 +8,6 @@ import secrets
 
 USUARIO = "admin"
 
-
-# ============================================================
-# SENHA
-# ============================================================
-#
-# A senha NÃO fica escrita aqui.
-#
-# Senha configurada:
-# [REMOVIDO]
-#
-# O sistema armazena somente o HASH.
-#
-# ============================================================
-
 SENHA_HASH = (
     "f66673975ecb718f0d4f0916aa6c0eb6ee69e8120bc88bd8bd53f6375aec4c55"
 )
@@ -29,7 +15,6 @@ SENHA_HASH = (
 SALT = (
     "AutoJurisIA_SALT_2026"
 )
-
 
 # ============================================================
 # CONFIGURAÇÃO
