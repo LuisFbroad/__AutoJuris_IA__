@@ -1,6 +1,3 @@
-import os
-from datetime import datetime
-
 from openpyxl import Workbook
 from openpyxl.styles import (
     Font,
@@ -16,389 +13,180 @@ class ExcelExporter:
 
     def __init__(self):
 
-        # ============================================================
-        # PASTA DE SAÍDA
-        # ============================================================
-
-        documentos = os.path.join(
-            os.path.expanduser("~"),
-            "Documents"
-        )
-
-        self.pasta_saida = os.path.join(
-            documentos,
-            "AutoJuris IA"
-        )
-
-        # Cria a pasta automaticamente
-        os.makedirs(
-            self.pasta_saida,
-            exist_ok=True
-        )
-
-    # ================================================================
-    # EXPORTAR
-    # ================================================================
-
-    def exportar(
-        self,
-        dados,
-        arquivo="relatorio_rpv.xlsx"
-    ):
-
-        # ------------------------------------------------------------
-        # CAMINHO COMPLETO
-        # ------------------------------------------------------------
-
-        caminho = os.path.join(
-            self.pasta_saida,
-            arquivo
-        )
-
-        # ------------------------------------------------------------
-        # SE O ARQUIVO ESTIVER ABERTO NO EXCEL
-        # ------------------------------------------------------------
-
-        if os.path.exists(caminho):
-
-            try:
-
-                # Testa se conseguimos abrir para escrita
-                with open(
-                    caminho,
-                    "a"
-                ):
-                    pass
-
-            except PermissionError:
-
-                # Gera outro nome automaticamente
-                nome, extensao = os.path.splitext(
-                    arquivo
-                )
-
-                data_hora = datetime.now().strftime(
-                    "%Y%m%d_%H%M%S"
-                )
-
-                arquivo = (
-                    f"{nome}_{data_hora}{extensao}"
-                )
-
-                caminho = os.path.join(
-                    self.pasta_saida,
-                    arquivo
-                )
-
-        # ============================================================
-        # CRIA WORKBOOK
-        # ============================================================
-
-        wb = Workbook()
-
-        ws = wb.active
-
-        ws.title = "RPV"
-
-        # ------------------------------------------------------------
-        # LINHAS DE GRADE
-        # ------------------------------------------------------------
-
-        ws.views.sheetView[
-            0
-        ].showGridLines = True
-
-        # ------------------------------------------------------------
-        # CONGELAR CABEÇALHO
-        # ------------------------------------------------------------
-
-        ws.freeze_panes = "A2"
-
-        # ============================================================
-        # ESTILOS
-        # ============================================================
-
-        # Cabeçalho
-        fill_header = PatternFill(
-            start_color="1B365D",
-            end_color="1B365D",
-            fill_type="solid"
-        )
-
-        font_header = Font(
-            name="Segoe UI",
-            size=11,
-            bold=True,
-            color="FFFFFF"
-        )
-
-        # Zebra
-        fill_zebra = PatternFill(
-            start_color="F8FAFC",
-            end_color="F8FAFC",
-            fill_type="solid"
-        )
-
-        fill_white = PatternFill(
-            start_color="FFFFFF",
-            end_color="FFFFFF",
-            fill_type="solid"
-        )
-
-        # Dados
-        font_data = Font(
-            name="Segoe UI",
-            size=10,
-            color="333333"
-        )
-
-        # Link
-        font_link = Font(
-            name="Segoe UI",
-            size=10,
-            color="0056B3",
-            underline="single"
-        )
-
-        # Bordas
-        thin_border_side = Side(
-            border_style="thin",
-            color="E0E0E0"
-        )
-
-        border_cell = Border(
-            left=thin_border_side,
-            right=thin_border_side,
-            top=thin_border_side,
-            bottom=thin_border_side
-        )
-
-        # Alinhamentos
-        align_center = Alignment(
-            horizontal="center",
-            vertical="center"
-        )
-
-        align_left = Alignment(
-            horizontal="left",
-            vertical="center"
-        )
-
-        # ============================================================
-        # CABEÇALHO
-        # ============================================================
-
-        headers = [
+        self.colunas = [
+            "Nome",
             "Número Processo",
+            "Proc. Originário",
             "Vara",
             "Banco",
             "Nº RPV"
         ]
 
-        ws.append(
-            headers
-        )
+    # ============================================================
+    # EXPORTAR
+    # ============================================================
 
-        ws.row_dimensions[
-            1
-        ].height = 28
+    def exportar(self, dados, caminho="relatorio_rpv.xlsx"):
 
-        for col_num, cell in enumerate(
-            ws[1],
+        workbook = Workbook()
+
+        sheet = workbook.active
+
+        sheet.title = "RPVs"
+
+        # ========================================================
+        # CABEÇALHO
+        # ========================================================
+
+        for coluna, nome in enumerate(
+            self.colunas,
             start=1
         ):
 
-            cell.fill = fill_header
+            celula = sheet.cell(
+                row=1,
+                column=coluna
+            )
 
-            cell.font = font_header
+            celula.value = nome
 
-            if col_num in [2, 4]:
+            celula.font = Font(
+                bold=True
+            )
 
-                cell.alignment = align_center
+            celula.alignment = Alignment(
+                horizontal="center",
+                vertical="center"
+            )
 
-            else:
-
-                cell.alignment = align_left
-
-            cell.border = border_cell
-
-        # ============================================================
+        # ========================================================
         # DADOS
-        # ============================================================
+        # ========================================================
 
-        for idx, item in enumerate(
+        for linha, processo in enumerate(
             dados,
             start=2
         ):
 
-            ws.row_dimensions[
-                idx
-            ].height = 22
+            valores = [
 
-            # Zebra
-            if idx % 2 == 0:
-
-                fill_atual = fill_zebra
-
-            else:
-
-                fill_atual = fill_white
-
-            # ========================================================
-            # COLUNA A - PROCESSO / LINK
-            # ========================================================
-
-            cell_proc = ws.cell(
-                row=idx,
-                column=1,
-                value=item.get(
-                    "numero",
+                processo.get(
+                    "nome",
                     ""
-                )
-            )
+                ),
 
-            link_url = item.get(
-                "link",
-                ""
-            )
+                processo.get(
+                    "processo",
+                    ""
+                ),
 
-            if link_url:
+                processo.get(
+                    "processo_originario",
+                    ""
+                ),
 
-                cell_proc.hyperlink = link_url
-
-                cell_proc.font = font_link
-
-                # Mantém o link clicável
-                cell_proc.style = "Hyperlink"
-
-            else:
-
-                cell_proc.font = font_data
-
-            cell_proc.alignment = align_left
-
-            # ========================================================
-            # COLUNA B - VARA
-            # ========================================================
-
-            cell_vara = ws.cell(
-                row=idx,
-                column=2,
-                value=item.get(
+                processo.get(
                     "vara",
                     ""
-                )
-            )
+                ),
 
-            cell_vara.font = font_data
-
-            cell_vara.alignment = align_center
-
-            # ========================================================
-            # COLUNA C - BANCO
-            # ========================================================
-
-            cell_banco = ws.cell(
-                row=idx,
-                column=3,
-                value=item.get(
+                processo.get(
                     "banco",
                     ""
-                )
-            )
+                ),
 
-            cell_banco.font = font_data
-
-            cell_banco.alignment = align_left
-
-            # ========================================================
-            # COLUNA D - RPV
-            # ========================================================
-
-            cell_rpv = ws.cell(
-                row=idx,
-                column=4,
-                value=item.get(
+                processo.get(
                     "rpv",
                     ""
-                )
-            )
+                ),
+            ]
 
-            cell_rpv.font = font_data
-
-            cell_rpv.alignment = align_center
-
-            # ========================================================
-            # FUNDO + BORDA
-            # ========================================================
-
-            for col in range(
-                1,
-                5
+            for coluna, valor in enumerate(
+                valores,
+                start=1
             ):
 
-                cell = ws.cell(
-                    row=idx,
-                    column=col
+                celula = sheet.cell(
+                    row=linha,
+                    column=coluna
                 )
 
-                cell.fill = fill_atual
+                celula.value = valor
 
-                cell.border = border_cell
-
-        # ============================================================
-        # AUTOFIT
-        # ============================================================
-
-        for col in ws.columns:
-
-            max_len = 0
-
-            col_letter = get_column_letter(
-                col[0].column
-            )
-
-            for cell in col:
-
-                valor = str(
-                    cell.value or ""
+                celula.alignment = Alignment(
+                    vertical="center"
                 )
 
-                if len(valor) > max_len:
+        # ========================================================
+        # BORDAS
+        # ========================================================
 
-                    max_len = len(
-                        valor
+        borda = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin")
+        )
+
+        for row in sheet.iter_rows():
+
+            for celula in row:
+
+                celula.border = borda
+
+        # ========================================================
+        # LARGURA DAS COLUNAS
+        # ========================================================
+
+        for coluna in range(
+            1,
+            sheet.max_column + 1
+        ):
+
+            maior = 0
+
+            for celula in sheet[
+                get_column_letter(coluna)
+            ]:
+
+                if celula.value:
+
+                    tamanho = len(
+                        str(celula.value)
                     )
 
-            ws.column_dimensions[
-                col_letter
-            ].width = max(
-                max_len + 4,
-                15
+                    maior = max(
+                        maior,
+                        tamanho
+                    )
+
+            sheet.column_dimensions[
+                get_column_letter(coluna)
+            ].width = min(
+                maior + 2,
+                60
             )
 
-        # ============================================================
+        # ========================================================
+        # CONGELAR CABEÇALHO
+        # ========================================================
+
+        sheet.freeze_panes = "A2"
+
+        # ========================================================
+        # FILTRO
+        # ========================================================
+
+        sheet.auto_filter.ref = (
+            sheet.dimensions
+        )
+
+        # ========================================================
         # SALVAR
-        # ============================================================
+        # ========================================================
 
-        wb.save(
-            caminho
-        )
+        workbook.save(caminho)
 
         print(
-            "=========================================="
+            f"\n[OK] Excel salvo em: {caminho}"
         )
-
-        print(
-            "EXCEL GERADO COM SUCESSO"
-        )
-
-        print(
-            f"Arquivo: {caminho}"
-        )
-
-        print(
-            "=========================================="
-        )
-
-        return caminho

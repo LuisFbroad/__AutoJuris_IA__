@@ -2,8 +2,8 @@ import os
 import re
 import sys
 import time
-
 import requests
+
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -16,33 +16,13 @@ from scrapers.processo_scraper import ProcessoScraper
 
 def obter_caminho_env():
 
-    """
-    Localiza o arquivo .env.
-
-    Desenvolvimento:
-        __AutoJuris_IA__\.env
-
-    Executável:
-        pasta onde o AutoJurisIA.exe está instalado\.env
-    """
-
     if getattr(sys, "frozen", False):
 
-        # Quando estiver rodando como EXE
         pasta_base = os.path.dirname(
             sys.executable
         )
 
     else:
-
-        # Quando estiver rodando:
-        # py main.py
-        #
-        # Este arquivo está em:
-        # scrapers/trf5_scraper.py
-        #
-        # O .env está em:
-        # __AutoJuris_IA__/.env
 
         pasta_scrapers = os.path.dirname(
             os.path.abspath(__file__)
@@ -64,25 +44,11 @@ def obter_caminho_env():
 
 CAMINHO_ENV = obter_caminho_env()
 
-print(
-    "=========================================="
-)
-
-print(
-    "CARREGANDO CONFIGURAÇÕES DO TRF5"
-)
-
-print(
-    f"Arquivo .env:"
-)
-
-print(
-    CAMINHO_ENV
-)
-
-print(
-    "=========================================="
-)
+print("==========================================")
+print("CARREGANDO CONFIGURAÇÕES DO TRF5")
+print("Arquivo .env:")
+print(CAMINHO_ENV)
+print("==========================================")
 
 
 if not os.path.exists(CAMINHO_ENV):
@@ -115,8 +81,6 @@ if not TRF5_CNPJ:
     )
 
 
-# Remove caracteres que eventualmente tenham sido colocados
-# no CNPJ, como pontos, barras e hífen.
 TRF5_CNPJ = re.sub(
     r"\D",
     "",
@@ -166,14 +130,13 @@ class TRF5Scraper:
         self.session = requests.Session()
 
         self.session.headers.update({
-
-            "User-Agent":
+            "User-Agent": (
                 "Mozilla/5.0 "
                 "(Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
                 "Chrome/151.0 Safari/537.36"
-
+            )
         })
 
         # ----------------------------------------------------
@@ -217,7 +180,7 @@ class TRF5Scraper:
             )
 
             print(
-                "⏱️ CRONÔMETRO DE COLETA INICIADO"
+                "CRONÔMETRO DE COLETA INICIADO"
             )
 
             print(
@@ -271,7 +234,7 @@ class TRF5Scraper:
             if resposta.status_code != 200:
 
                 print(
-                    f"❌ Página {pagina} retornou "
+                    f"Página {pagina} retornou "
                     f"status {resposta.status_code}"
                 )
 
@@ -303,7 +266,7 @@ class TRF5Scraper:
             )
 
             # ------------------------------------------------
-            # DETALHES
+            # NENHUM PROCESSO
             # ------------------------------------------------
 
             if not processos_basicos:
@@ -314,11 +277,15 @@ class TRF5Scraper:
                 )
 
                 print(
-                    f"⏱️ Tempo acumulado: "
+                    f"Tempo acumulado: "
                     f"{tempo_parcial:.2f} segundos"
                 )
 
                 return []
+
+            # ------------------------------------------------
+            # DETALHES
+            # ------------------------------------------------
 
             processos_completos = (
                 self.processo_scraper
@@ -337,7 +304,7 @@ class TRF5Scraper:
             )
 
             print(
-                f"⏱️ Tempo acumulado até "
+                f"Tempo acumulado até "
                 f"a página {pagina}: "
                 f"{tempo_parcial:.2f} segundos\n"
             )
@@ -347,7 +314,7 @@ class TRF5Scraper:
         except requests.RequestException as e:
 
             print(
-                f"❌ Erro HTTP ao buscar "
+                f"Erro HTTP ao buscar "
                 f"página {pagina}: {e}"
             )
 
@@ -356,7 +323,7 @@ class TRF5Scraper:
         except Exception as e:
 
             print(
-                f"❌ Erro ao buscar "
+                f"Erro ao buscar "
                 f"página {pagina}: {e}"
             )
 
@@ -411,14 +378,11 @@ class TRF5Scraper:
                     continue
 
                 texto = " ".join(
-
                     coluna.get_text(
                         " ",
                         strip=True
                     )
-
                     for coluna in colunas
-
                 )
 
                 # ------------------------------------------------
@@ -451,18 +415,21 @@ class TRF5Scraper:
                 # ------------------------------------------------
 
                 rpv = re.search(
-                    r"RPV\d+-[A-Z]{2}",
-                    texto
+                    r"RPV\s*\d+\s*-\s*[A-Z]{2}",
+                    texto,
+                    re.IGNORECASE
                 )
 
                 numero_rpv = (
                     rpv.group()
+                    .replace(" ", "")
+                    .upper()
                     if rpv
                     else ""
                 )
 
                 # ------------------------------------------------
-                # LINK
+                # LINK DO PROCESSO
                 # ------------------------------------------------
 
                 link = (

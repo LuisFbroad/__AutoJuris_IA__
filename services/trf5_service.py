@@ -1,69 +1,57 @@
 from scrapers.trf5_scraper import TRF5Scraper
-
+from scrapers.processo_scraper import ProcessoScraper
 
 
 class TRF5Service:
-
 
     def __init__(self):
 
         self.scraper = TRF5Scraper()
 
-
+        self.processo_scraper = ProcessoScraper()
 
     def coletar_processos(
         self,
         limite_paginas
     ):
 
-
         processos = []
-
-
 
         for pagina in range(
             1,
             limite_paginas + 1
         ):
 
-
-            resultado = self.scraper.buscar_pagina(
-                pagina
+            print(
+                f"\n[TRF5] Coletando página {pagina}..."
             )
 
+            try:
 
-
-            for processo in resultado:
-
-
-                detalhes = self.buscar_detalhes_processo(
-                    processo["link"]
+                resultado = self.scraper.buscar_pagina(
+                    pagina
                 )
 
-
-                processo.update(
-                    detalhes
+                processos.extend(
+                    resultado
                 )
 
+            except Exception as e:
 
-                processos.append(
-                    processo
+                print(
+                    f"[ERRO] Página {pagina}: {e}"
                 )
-
-
 
         return processos
-
-
-
-
 
     def buscar_detalhes_processo(
         self,
         link
     ):
 
-
-        return self.scraper.extrair_detalhes_processo(
-            link
+        return (
+            self.processo_scraper
+            .extrair_detalhes_processo(
+                link
+            )
         )
