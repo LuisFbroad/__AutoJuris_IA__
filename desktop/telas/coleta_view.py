@@ -4,6 +4,7 @@ import subprocess
 import threading
 
 import customtkinter as ctk
+
 from PIL import Image
 
 from services.trf5_service import TRF5Service
@@ -14,7 +15,7 @@ from exports.excel_exporter import ExcelExporter
 # RECURSOS DO PROGRAMA
 # ============================================================
 
-def recurso(caminho):
+def recurso(*caminho):
 
     """
     Retorna o caminho correto de arquivos internos.
@@ -39,15 +40,19 @@ def recurso(caminho):
         base_path = os.path.abspath(
             os.path.join(
                 os.path.dirname(__file__),
-                ".."
+                "../.."
             )
         )
 
     return os.path.join(
         base_path,
-        caminho
+        *caminho
     )
 
+
+# ============================================================
+# COLETA VIEW
+# ============================================================
 
 class ColetaView(ctk.CTkFrame):
 
@@ -58,15 +63,21 @@ class ColetaView(ctk.CTkFrame):
             corner_radius=10
         )
 
+        # ========================================================
+        # OBJETOS
+        # ========================================================
+
         self.service = TRF5Service()
+
         self.exporter = ExcelExporter()
 
         self.dados = []
+
         self.caminho_excel = None
 
-        # ====================================================
+        # ========================================================
         # GRID PRINCIPAL
-        # ====================================================
+        # ========================================================
 
         self.grid_columnconfigure(
             0,
@@ -78,9 +89,9 @@ class ColetaView(ctk.CTkFrame):
             weight=1
         )
 
-        # ====================================================
+        # ========================================================
         # CABEÇALHO
-        # ====================================================
+        # ========================================================
 
         self.header_frame = ctk.CTkFrame(
             self,
@@ -95,16 +106,14 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ----------------------------------------------------
+        # ========================================================
         # LOGO
-        # ----------------------------------------------------
+        # ========================================================
 
         caminho_logo = recurso(
-            os.path.join(
-                "desktop",
-                "assets",
-                "GAGC_logo.png"
-            )
+            "desktop",
+            "assets",
+            "GAGC_logo.png"
         )
 
         print("Caminho da logo:")
@@ -151,9 +160,9 @@ class ColetaView(ctk.CTkFrame):
                 caminho_logo
             )
 
-        # ----------------------------------------------------
+        # ========================================================
         # TÍTULO
-        # ----------------------------------------------------
+        # ========================================================
 
         self.titulo = ctk.CTkLabel(
             self.header_frame,
@@ -169,9 +178,9 @@ class ColetaView(ctk.CTkFrame):
             side="left"
         )
 
-        # ====================================================
+        # ========================================================
         # CARD DE CONFIGURAÇÃO
-        # ====================================================
+        # ========================================================
 
         self.card_form = ctk.CTkFrame(
             self,
@@ -191,9 +200,9 @@ class ColetaView(ctk.CTkFrame):
             weight=1
         )
 
-        # ----------------------------------------------------
+        # ========================================================
         # LABEL PÁGINAS
-        # ----------------------------------------------------
+        # ========================================================
 
         self.label_paginas = ctk.CTkLabel(
             self.card_form,
@@ -211,9 +220,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="w"
         )
 
-        # ----------------------------------------------------
+        # ========================================================
         # INPUT
-        # ----------------------------------------------------
+        # ========================================================
 
         self.paginas_entry = ctk.CTkEntry(
             self.card_form,
@@ -229,9 +238,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="w"
         )
 
-        # ----------------------------------------------------
+        # ========================================================
         # BOTÃO COLETAR
-        # ----------------------------------------------------
+        # ========================================================
 
         self.botao_coletar = ctk.CTkButton(
             self.card_form,
@@ -250,9 +259,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="e"
         )
 
-        # ====================================================
+        # ========================================================
         # CARD DE STATUS
-        # ====================================================
+        # ========================================================
 
         self.card_status = ctk.CTkFrame(
             self,
@@ -277,9 +286,9 @@ class ColetaView(ctk.CTkFrame):
             weight=1
         )
 
-        # ----------------------------------------------------
+        # ========================================================
         # STATUS
-        # ----------------------------------------------------
+        # ========================================================
 
         self.status = ctk.CTkLabel(
             self.card_status,
@@ -298,9 +307,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="w"
         )
 
-        # ----------------------------------------------------
+        # ========================================================
         # PROGRESSO
-        # ----------------------------------------------------
+        # ========================================================
 
         self.progress_bar = ctk.CTkProgressBar(
             self.card_status,
@@ -317,9 +326,9 @@ class ColetaView(ctk.CTkFrame):
 
         self.progress_bar.set(0)
 
-        # ----------------------------------------------------
+        # ========================================================
         # LOG
-        # ----------------------------------------------------
+        # ========================================================
 
         self.log_textbox = ctk.CTkTextbox(
             self.card_status,
@@ -347,9 +356,9 @@ class ColetaView(ctk.CTkFrame):
             "Sistema pronto para iniciar."
         )
 
-        # ====================================================
+        # ========================================================
         # RODAPÉ
-        # ====================================================
+        # ========================================================
 
         self.card_acoes = ctk.CTkFrame(
             self,
@@ -364,9 +373,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ----------------------------------------------------
-        # EXCEL
-        # ----------------------------------------------------
+        # ========================================================
+        # BOTÃO EXCEL
+        # ========================================================
 
         self.botao_excel = ctk.CTkButton(
             self.card_acoes,
@@ -384,9 +393,9 @@ class ColetaView(ctk.CTkFrame):
             side="right"
         )
 
-    # ========================================================
+    # ============================================================
     # LOG
-    # ========================================================
+    # ============================================================
 
     def _log(self, mensagem):
 
@@ -422,9 +431,9 @@ class ColetaView(ctk.CTkFrame):
             append
         )
 
-    # ========================================================
-    # PROGRESSO
-    # ========================================================
+    # ============================================================
+    # ATUALIZAR PROGRESSO
+    # ============================================================
 
     def _atualizar_progresso(
         self,
@@ -438,9 +447,9 @@ class ColetaView(ctk.CTkFrame):
             )
         )
 
-    # ========================================================
+    # ============================================================
     # INICIAR COLETA
-    # ========================================================
+    # ============================================================
 
     def acao_iniciar_coleta(self):
 
@@ -461,6 +470,10 @@ class ColetaView(ctk.CTkFrame):
 
             return
 
+        # --------------------------------------------------------
+        # DESABILITAR BOTÕES
+        # --------------------------------------------------------
+
         self.botao_coletar.configure(
             state="disabled"
         )
@@ -469,9 +482,17 @@ class ColetaView(ctk.CTkFrame):
             state="disabled"
         )
 
+        # --------------------------------------------------------
+        # STATUS
+        # --------------------------------------------------------
+
         self.status.configure(
             text="Coletando processos..."
         )
+
+        # --------------------------------------------------------
+        # LIMPAR LOG
+        # --------------------------------------------------------
 
         self.log_textbox.configure(
             state="normal"
@@ -486,6 +507,10 @@ class ColetaView(ctk.CTkFrame):
             state="disabled"
         )
 
+        # --------------------------------------------------------
+        # RESETAR PROGRESSO
+        # --------------------------------------------------------
+
         self.progress_bar.set(
             0
         )
@@ -494,15 +519,19 @@ class ColetaView(ctk.CTkFrame):
             f"Iniciando coleta para {paginas} página(s)..."
         )
 
+        # --------------------------------------------------------
+        # THREAD
+        # --------------------------------------------------------
+
         threading.Thread(
             target=self._executar_coleta,
             args=(paginas,),
             daemon=True
         ).start()
 
-    # ========================================================
+    # ============================================================
     # EXECUTAR COLETA
-    # ========================================================
+    # ============================================================
 
     def _executar_coleta(
         self,
@@ -510,6 +539,10 @@ class ColetaView(ctk.CTkFrame):
     ):
 
         try:
+
+            # ----------------------------------------------------
+            # COLETAR
+            # ----------------------------------------------------
 
             processos = self.service.coletar_processos(
                 paginas
@@ -520,19 +553,39 @@ class ColetaView(ctk.CTkFrame):
             )
 
             dados_final = []
+
             vistos = set()
 
-            total = len(processos)
+            total = len(
+                processos
+            )
 
-            for i, processo in enumerate(processos):
+            # ----------------------------------------------------
+            # PROCESSAR
+            # ----------------------------------------------------
+
+            for i, processo in enumerate(
+                processos
+            ):
 
                 numero = processo.get(
                     "numero",
-                    ""
+                    processo.get(
+                        "processo",
+                        ""
+                    )
                 )
+
+                # ------------------------------------------------
+                # SEM NÚMERO
+                # ------------------------------------------------
 
                 if not numero:
                     continue
+
+                # ------------------------------------------------
+                # EVITAR DUPLICADOS
+                # ------------------------------------------------
 
                 if numero in vistos:
                     continue
@@ -541,25 +594,48 @@ class ColetaView(ctk.CTkFrame):
                     numero
                 )
 
+                # ------------------------------------------------
+                # ADICIONAR DADOS
+                # ------------------------------------------------
+
                 dados_final.append({
+
+                    "nome": processo.get(
+                        "nome",
+                        ""
+                    ),
+
                     "numero": numero,
+
+                    "processo_originario": processo.get(
+                        "processo_originario",
+                        ""
+                    ),
+
                     "link": processo.get(
                         "link",
                         ""
                     ),
+
                     "vara": processo.get(
                         "vara",
                         ""
                     ),
+
                     "banco": processo.get(
                         "banco",
                         ""
                     ),
+
                     "rpv": processo.get(
                         "rpv",
                         ""
                     )
                 })
+
+                # ------------------------------------------------
+                # PROGRESSO
+                # ------------------------------------------------
 
                 if total > 0:
 
@@ -571,11 +647,19 @@ class ColetaView(ctk.CTkFrame):
                         progresso
                     )
 
+            # ----------------------------------------------------
+            # SALVAR DADOS
+            # ----------------------------------------------------
+
             self.dados = dados_final
 
             quantidade = len(
                 self.dados
             )
+
+            # ====================================================
+            # GERAR EXCEL
+            # ====================================================
 
             if quantidade > 0:
 
@@ -594,7 +678,9 @@ class ColetaView(ctk.CTkFrame):
                 )
 
                 self._log(
-                    str(self.caminho_excel)
+                    str(
+                        self.caminho_excel
+                    )
                 )
 
                 mensagem_status = (
@@ -628,6 +714,10 @@ class ColetaView(ctk.CTkFrame):
 
             sucesso = False
 
+        # --------------------------------------------------------
+        # FINALIZAR NA THREAD PRINCIPAL
+        # --------------------------------------------------------
+
         self.after(
             0,
             self._finalizar_coleta,
@@ -635,15 +725,19 @@ class ColetaView(ctk.CTkFrame):
             sucesso
         )
 
-    # ========================================================
-    # FINALIZAR
-    # ========================================================
+    # ============================================================
+    # FINALIZAR COLETA
+    # ============================================================
 
     def _finalizar_coleta(
         self,
         mensagem_status,
         sucesso
     ):
+
+        # --------------------------------------------------------
+        # PROGRESSO
+        # --------------------------------------------------------
 
         if sucesso:
 
@@ -657,13 +751,25 @@ class ColetaView(ctk.CTkFrame):
                 0
             )
 
+        # --------------------------------------------------------
+        # STATUS
+        # --------------------------------------------------------
+
         self.status.configure(
             text=mensagem_status
         )
 
+        # --------------------------------------------------------
+        # REATIVAR COLETA
+        # --------------------------------------------------------
+
         self.botao_coletar.configure(
             state="normal"
         )
+
+        # --------------------------------------------------------
+        # HABILITAR EXCEL
+        # --------------------------------------------------------
 
         if sucesso:
 
@@ -675,22 +781,90 @@ class ColetaView(ctk.CTkFrame):
                 "Operação concluída."
             )
 
-    # ========================================================
+    # ============================================================
     # ABRIR EXCEL
-    # ========================================================
+    # ============================================================
 
     def abrir_excel(self):
 
+        print()
+        print(
+            "=========================================="
+        )
+        print(
+            "TENTANDO ABRIR ARQUIVO EXCEL"
+        )
+        print(
+            "=========================================="
+        )
+
+        # --------------------------------------------------------
+        # VERIFICAR CAMINHO
+        # --------------------------------------------------------
+
+        print(
+            "Caminho armazenado:"
+        )
+
+        print(
+            self.caminho_excel
+        )
+
         if not self.caminho_excel:
+
+            self._log(
+                "❌ Nenhum arquivo Excel foi gerado."
+            )
+
+            print(
+                "ERRO: self.caminho_excel está vazio."
+            )
+
             return
 
-        if not os.path.exists(
-            self.caminho_excel
-        ):
-            self._log(
-                "Arquivo Excel não encontrado."
+        # --------------------------------------------------------
+        # CAMINHO ABSOLUTO
+        # --------------------------------------------------------
+
+        caminho = os.path.abspath(
+            str(
+                self.caminho_excel
             )
+        )
+
+        print(
+            "Caminho absoluto:"
+        )
+
+        print(
+            caminho
+        )
+
+        # --------------------------------------------------------
+        # VERIFICAR ARQUIVO
+        # --------------------------------------------------------
+
+        if not os.path.isfile(
+            caminho
+        ):
+
+            self._log(
+                "❌ Arquivo Excel não encontrado."
+            )
+
+            self._log(
+                f"Caminho: {caminho}"
+            )
+
+            print(
+                "ERRO: arquivo não existe."
+            )
+
             return
+
+        # --------------------------------------------------------
+        # ABRIR
+        # --------------------------------------------------------
 
         try:
 
@@ -698,26 +872,46 @@ class ColetaView(ctk.CTkFrame):
                 "win"
             ):
 
+                print(
+                    "Abrindo Excel..."
+                )
+
                 os.startfile(
-                    self.caminho_excel
+                    caminho
                 )
 
             elif sys.platform == "darwin":
 
                 subprocess.Popen([
                     "open",
-                    self.caminho_excel
+                    caminho
                 ])
 
             else:
 
                 subprocess.Popen([
                     "xdg-open",
-                    self.caminho_excel
+                    caminho
                 ])
+
+            self._log(
+                "✅ Arquivo Excel aberto."
+            )
+
+            print(
+                "Excel aberto com sucesso."
+            )
 
         except Exception as e:
 
+            print(
+                "ERRO AO ABRIR EXCEL:"
+            )
+
+            print(
+                f"{type(e).__name__}: {e}"
+            )
+
             self._log(
-                f"Erro ao abrir Excel: {e}"
+                f"❌ Erro ao abrir Excel: {e}"
             )
