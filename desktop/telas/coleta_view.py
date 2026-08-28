@@ -1,917 +1,914 @@
 import os
-import sys
-import subprocess
+import re
 import threading
+import traceback
+import tkinter as tk
+from tkinter import messagebox
 
 import customtkinter as ctk
-
-from PIL import Image
 
 from services.trf5_service import TRF5Service
 from exports.excel_exporter import ExcelExporter
 
 
-# ============================================================
-# RECURSOS DO PROGRAMA
-# ============================================================
-
-def recurso(*caminho):
-
-    """
-    Retorna o caminho correto de arquivos internos.
-
-    Funciona tanto:
-
-    python main.py
-
-    quanto:
-
-    programa.exe
-    """
-
-    if getattr(sys, "frozen", False):
-
-        # PyInstaller
-        base_path = sys._MEIPASS
-
-    else:
-
-        # Execução normal pelo Python
-        base_path = os.path.abspath(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../.."
-            )
-        )
-
-    return os.path.join(
-        base_path,
-        *caminho
-    )
-
-
-# ============================================================
-# COLETA VIEW
-# ============================================================
-
 class ColetaView(ctk.CTkFrame):
 
-    def __init__(self, parent):
+    def __init__(self, master):
+        super().__init__(master)
 
-        super().__init__(
-            parent,
-            corner_radius=10
-        )
-
-        # ========================================================
-        # OBJETOS
-        # ========================================================
-
-        self.service = TRF5Service()
-
-        self.exporter = ExcelExporter()
+        # ============================================================
+        # DADOS
+        # ============================================================
 
         self.dados = []
-
         self.caminho_excel = None
+        self.total_trf5 = 0
+        self.processos_coletados = 0
 
-        # ========================================================
-        # GRID PRINCIPAL
-        # ========================================================
+        # ============================================================
+        # CONFIGURAÇÃO
+        # ============================================================
 
-        self.grid_columnconfigure(
-            0,
-            weight=1
-        )
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
 
-        self.grid_rowconfigure(
-            2,
-            weight=1
-        )
-
-        # ========================================================
+        # ============================================================
         # CABEÇALHO
-        # ========================================================
+        # ============================================================
 
-        self.header_frame = ctk.CTkFrame(
-            self,
-            fg_color="transparent"
-        )
-
-        self.header_frame.grid(
-            row=0,
-            column=0,
-            padx=20,
-            pady=(20, 10),
-            sticky="ew"
-        )
-
-        # ========================================================
-        # LOGO
-        # ========================================================
-
-        caminho_logo = recurso(
-            "desktop",
-            "assets",
-            "GAGC_logo.png"
-        )
-
-        print("Caminho da logo:")
-        print(caminho_logo)
-
-        if os.path.exists(caminho_logo):
-
-            try:
-
-                imagem = Image.open(
-                    caminho_logo
-                )
-
-                logo_img = ctk.CTkImage(
-                    light_image=imagem,
-                    dark_image=imagem,
-                    size=(40, 40)
-                )
-
-                self.logo_label = ctk.CTkLabel(
-                    self.header_frame,
-                    image=logo_img,
-                    text=""
-                )
-
-                self.logo_label.pack(
-                    side="left",
-                    padx=(0, 10)
-                )
-
-            except Exception as e:
-
-                print(
-                    f"Erro ao carregar imagem da logo: {e}"
-                )
-
-        else:
-
-            print(
-                "AVISO: Logo não encontrada:"
-            )
-
-            print(
-                caminho_logo
-            )
-
-        # ========================================================
-        # TÍTULO
-        # ========================================================
-
-        self.titulo = ctk.CTkLabel(
-            self.header_frame,
-            text="Coleta de Processos TRF5",
-            font=ctk.CTkFont(
-                family="Arial",
-                size=22,
-                weight="bold"
-            )
-        )
-
-        self.titulo.pack(
-            side="left"
-        )
-
-        # ========================================================
-        # CARD DE CONFIGURAÇÃO
-        # ========================================================
-
-        self.card_form = ctk.CTkFrame(
+        self.frame_header = ctk.CTkFrame(
             self,
             corner_radius=10
         )
-
-        self.card_form.grid(
-            row=1,
+        self.frame_header.grid(
+            row=0,
             column=0,
-            padx=20,
-            pady=10,
+            padx=15,
+            pady=(15, 10),
             sticky="ew"
         )
 
-        self.card_form.grid_columnconfigure(
+        self.frame_header.grid_columnconfigure(
             1,
             weight=1
         )
 
-        # ========================================================
-        # LABEL PÁGINAS
-        # ========================================================
+        # Logo
+        try:
+            caminho_logo = os.path.join(
+                os.path.dirname(
+                    os.path.dirname(
+                        os.path.dirname(
+                            os.path.abspath(__file__)
+                        )
+                    )
+                ),
+                "assets",
+                "GAGC_logo.png"
+            )
 
-        self.label_paginas = ctk.CTkLabel(
-            self.card_form,
-            text="Quantidade de Páginas:",
+            if os.path.exists(caminho_logo):
+                from PIL import Image
+
+                imagem = ctk.CTkImage(
+                    light_image=Image.open(caminho_logo),
+                    dark_image=Image.open(caminho_logo),
+                    size=(40, 40)
+                )
+
+                self.logo = ctk.CTkLabel(
+                    self.frame_header,
+                    image=imagem,
+                    text=""
+                )
+
+                self.logo.grid(
+                    row=0,
+                    column=0,
+                    padx=(15, 10),
+                    pady=15
+                )
+
+        except Exception:
+            pass
+
+        self.titulo = ctk.CTkLabel(
+            self.frame_header,
+            text="Coleta de Processos TRF5",
             font=ctk.CTkFont(
-                size=14
+                size=24,
+                weight="bold"
             )
         )
 
-        self.label_paginas.grid(
-            row=0,
-            column=0,
-            padx=15,
-            pady=15,
-            sticky="w"
-        )
-
-        # ========================================================
-        # INPUT
-        # ========================================================
-
-        self.paginas_entry = ctk.CTkEntry(
-            self.card_form,
-            width=180,
-            placeholder_text="Ex: 5"
-        )
-
-        self.paginas_entry.grid(
+        self.titulo.grid(
             row=0,
             column=1,
-            padx=15,
+            padx=10,
             pady=15,
             sticky="w"
         )
 
-        # ========================================================
-        # BOTÃO COLETAR
-        # ========================================================
+        # ============================================================
+        # CONFIGURAÇÕES DA CONSULTA
+        # ============================================================
 
-        self.botao_coletar = ctk.CTkButton(
-            self.card_form,
-            text="▶ Iniciar Coleta",
-            font=ctk.CTkFont(
-                weight="bold"
-            ),
-            command=self.acao_iniciar_coleta
-        )
-
-        self.botao_coletar.grid(
-            row=0,
-            column=2,
-            padx=15,
-            pady=15,
-            sticky="e"
-        )
-
-        # ========================================================
-        # CARD DE STATUS
-        # ========================================================
-
-        self.card_status = ctk.CTkFrame(
+        self.frame_config = ctk.CTkFrame(
             self,
             corner_radius=10
         )
 
-        self.card_status.grid(
-            row=2,
-            column=0,
-            padx=20,
-            pady=10,
-            sticky="nsew"
-        )
-
-        self.card_status.grid_columnconfigure(
-            0,
-            weight=1
-        )
-
-        self.card_status.grid_rowconfigure(
-            2,
-            weight=1
-        )
-
-        # ========================================================
-        # STATUS
-        # ========================================================
-
-        self.status = ctk.CTkLabel(
-            self.card_status,
-            text="Aguardando início da operação.",
-            font=ctk.CTkFont(
-                size=13,
-                weight="bold"
-            )
-        )
-
-        self.status.grid(
-            row=0,
-            column=0,
-            padx=15,
-            pady=(15, 5),
-            sticky="w"
-        )
-
-        # ========================================================
-        # PROGRESSO
-        # ========================================================
-
-        self.progress_bar = ctk.CTkProgressBar(
-            self.card_status,
-            mode="determinate"
-        )
-
-        self.progress_bar.grid(
+        self.frame_config.grid(
             row=1,
             column=0,
             padx=15,
-            pady=(0, 15),
+            pady=10,
             sticky="ew"
         )
 
-        self.progress_bar.set(0)
-
-        # ========================================================
-        # LOG
-        # ========================================================
-
-        self.log_textbox = ctk.CTkTextbox(
-            self.card_status,
-            font=ctk.CTkFont(
-                family="Consolas",
-                size=12
-            ),
-            wrap="word",
-            activate_scrollbars=True
+        self.frame_config.grid_columnconfigure(
+            1,
+            weight=1
         )
 
-        self.log_textbox.grid(
+        # ------------------------------------------------------------
+        # CPF / CNPJ
+        # ------------------------------------------------------------
+
+        self.label_documento = ctk.CTkLabel(
+            self.frame_config,
+            text="CPF/CNPJ:"
+        )
+
+        self.label_documento.grid(
+            row=0,
+            column=0,
+            padx=(15, 10),
+            pady=(15, 8),
+            sticky="w"
+        )
+
+        self.entry_documento = ctk.CTkEntry(
+            self.frame_config,
+            placeholder_text="Digite o CPF ou CNPJ"
+        )
+
+        self.entry_documento.grid(
+            row=0,
+            column=1,
+            padx=(0, 15),
+            pady=(15, 8),
+            sticky="ew"
+        )
+
+        # ------------------------------------------------------------
+        # TIPO DOCUMENTO
+        # ------------------------------------------------------------
+
+        self.label_tipo = ctk.CTkLabel(
+            self.frame_config,
+            text="Tipo:"
+        )
+
+        self.label_tipo.grid(
+            row=1,
+            column=0,
+            padx=(15, 10),
+            pady=8,
+            sticky="w"
+        )
+
+        self.combo_tipo = ctk.CTkComboBox(
+            self.frame_config,
+            values=[
+                "CPF",
+                "CNPJ"
+            ],
+            state="readonly"
+        )
+
+        self.combo_tipo.set("CPF")
+
+        self.combo_tipo.grid(
+            row=1,
+            column=1,
+            padx=(0, 15),
+            pady=8,
+            sticky="ew"
+        )
+
+        # ------------------------------------------------------------
+        # TIPO DE PAGAMENTO
+        # ------------------------------------------------------------
+
+        self.label_pagamento = ctk.CTkLabel(
+            self.frame_config,
+            text="Tipo de pagamento:"
+        )
+
+        self.label_pagamento.grid(
             row=2,
             column=0,
+            padx=(15, 10),
+            pady=8,
+            sticky="w"
+        )
+
+        self.combo_pagamento = ctk.CTkComboBox(
+            self.frame_config,
+            values=[
+                "RPV e Precatório",
+                "RPV",
+                "Precatório"
+            ],
+            state="readonly"
+        )
+
+        self.combo_pagamento.set(
+            "RPV e Precatório"
+        )
+
+        self.combo_pagamento.grid(
+            row=2,
+            column=1,
+            padx=(0, 15),
+            pady=8,
+            sticky="ew"
+        )
+
+        # ------------------------------------------------------------
+        # QUANTIDADE DE PÁGINAS
+        # ------------------------------------------------------------
+
+        self.label_paginas = ctk.CTkLabel(
+            self.frame_config,
+            text="Quantidade de Páginas:"
+        )
+
+        self.label_paginas.grid(
+            row=3,
+            column=0,
+            padx=(15, 10),
+            pady=8,
+            sticky="w"
+        )
+
+        self.entry_paginas = ctk.CTkEntry(
+            self.frame_config,
+            placeholder_text="Ex: 5"
+        )
+
+        self.entry_paginas.insert(
+            0,
+            "1"
+        )
+
+        self.entry_paginas.grid(
+            row=3,
+            column=1,
+            padx=(0, 15),
+            pady=8,
+            sticky="ew"
+        )
+
+        # ------------------------------------------------------------
+        # VALORES VINCULADOS
+        # ------------------------------------------------------------
+
+        self.var_vinculados = tk.BooleanVar(
+            value=True
+        )
+
+        self.check_vinculados = ctk.CTkCheckBox(
+            self.frame_config,
+            text="Consultar somente valores vinculados",
+            variable=self.var_vinculados
+        )
+
+        self.check_vinculados.grid(
+            row=4,
+            column=0,
+            columnspan=2,
             padx=15,
-            pady=(0, 15),
-            sticky="nsew"
+            pady=(8, 15),
+            sticky="w"
         )
 
-        self.log_textbox.configure(
-            state="disabled"
-        )
+        # ============================================================
+        # CONTROLES
+        # ============================================================
 
-        self._log(
-            "Sistema pronto para iniciar."
-        )
-
-        # ========================================================
-        # RODAPÉ
-        # ========================================================
-
-        self.card_acoes = ctk.CTkFrame(
+        self.frame_controles = ctk.CTkFrame(
             self,
             fg_color="transparent"
         )
 
-        self.card_acoes.grid(
-            row=3,
+        self.frame_controles.grid(
+            row=2,
             column=0,
-            padx=20,
-            pady=(0, 20),
+            padx=15,
+            pady=(0, 10),
             sticky="ew"
         )
 
-        # ========================================================
+        self.frame_controles.grid_columnconfigure(
+            0,
+            weight=1
+        )
+
+        # ------------------------------------------------------------
+        # BOTÃO INICIAR
+        # ------------------------------------------------------------
+
+        self.botao_iniciar = ctk.CTkButton(
+            self.frame_controles,
+            text="▶ Iniciar Coleta",
+            height=42,
+            command=self.iniciar_coleta
+        )
+
+        self.botao_iniciar.grid(
+            row=0,
+            column=0,
+            padx=(0, 10),
+            sticky="ew"
+        )
+
+        # ------------------------------------------------------------
         # BOTÃO EXCEL
-        # ========================================================
+        # ------------------------------------------------------------
 
         self.botao_excel = ctk.CTkButton(
-            self.card_acoes,
+            self.frame_controles,
             text="📊 Abrir Arquivo Excel",
-            fg_color="#1D6F42",
-            hover_color="#155231",
+            height=42,
+            fg_color="green",
+            hover_color="darkgreen",
+            state="disabled",
+            command=self.abrir_excel
+        )
+
+        self.botao_excel.grid(
+            row=0,
+            column=1,
+            padx=(10, 0)
+        )
+
+        # ============================================================
+        # STATUS
+        # ============================================================
+
+        self.label_status = ctk.CTkLabel(
+            self,
+            text="Pronto para iniciar uma consulta.",
+            anchor="w"
+        )
+
+        self.label_status.grid(
+            row=3,
+            column=0,
+            padx=20,
+            pady=(0, 5),
+            sticky="ew"
+        )
+
+        # ============================================================
+        # BARRA DE PROGRESSO
+        # ============================================================
+
+        self.progress = ctk.CTkProgressBar(
+            self,
+            mode="determinate"
+        )
+
+        self.progress.set(0)
+
+        self.progress.grid(
+            row=4,
+            column=0,
+            padx=20,
+            pady=(0, 10),
+            sticky="ew"
+        )
+
+        # ============================================================
+        # LOG
+        # ============================================================
+
+        self.label_log = ctk.CTkLabel(
+            self,
+            text="Log da operação",
+            anchor="w",
             font=ctk.CTkFont(
+                size=14,
                 weight="bold"
-            ),
-            command=self.abrir_excel,
-            state="disabled"
+            )
         )
 
-        self.botao_excel.pack(
-            side="right"
+        self.label_log.grid(
+            row=5,
+            column=0,
+            padx=20,
+            pady=(0, 5),
+            sticky="ew"
         )
 
-    # ============================================================
+        self.text_log = ctk.CTkTextbox(
+            self,
+            font=("Consolas", 11),
+            wrap="none"
+        )
+
+        self.text_log.grid(
+            row=6,
+            column=0,
+            padx=15,
+            pady=(0, 15),
+            sticky="nsew"
+        )
+
+        # Ajuste do grid para o log crescer
+        self.grid_rowconfigure(
+            6,
+            weight=1
+        )
+
+    # ================================================================
     # LOG
-    # ============================================================
+    # ================================================================
 
-    def _log(self, mensagem):
+    def adicionar_log(self, mensagem):
 
-        def append():
+        def atualizar():
+            self.text_log.insert(
+                "end",
+                mensagem + "\n"
+            )
 
-            try:
-
-                self.log_textbox.configure(
-                    state="normal"
-                )
-
-                self.log_textbox.insert(
-                    "end",
-                    f"> {mensagem}\n"
-                )
-
-                self.log_textbox.see(
-                    "end"
-                )
-
-                self.log_textbox.configure(
-                    state="disabled"
-                )
-
-            except Exception as e:
-
-                print(
-                    f"Erro no log: {e}"
-                )
+            self.text_log.see(
+                "end"
+            )
 
         self.after(
             0,
-            append
+            atualizar
         )
 
-    # ============================================================
-    # ATUALIZAR PROGRESSO
-    # ============================================================
+    # ================================================================
+    # STATUS
+    # ================================================================
 
-    def _atualizar_progresso(
-        self,
-        valor
-    ):
+    def atualizar_status(self, mensagem):
 
         self.after(
             0,
-            lambda: self.progress_bar.set(
+            lambda: self.label_status.configure(
+                text=mensagem
+            )
+        )
+
+    # ================================================================
+    # PROGRESSO
+    # ================================================================
+
+    def atualizar_progresso(self, valor):
+
+        valor = max(
+            0,
+            min(
+                1,
                 valor
             )
         )
 
-    # ============================================================
+        self.after(
+            0,
+            lambda: self.progress.set(
+                valor
+            )
+        )
+
+    # ================================================================
     # INICIAR COLETA
-    # ============================================================
+    # ================================================================
 
-    def acao_iniciar_coleta(self):
+    def iniciar_coleta(self):
 
-        try:
+        documento = self.entry_documento.get().strip()
 
-            paginas = int(
-                self.paginas_entry.get()
+        tipo_documento = self.combo_tipo.get()
+
+        paginas_texto = self.entry_paginas.get().strip()
+
+        # ------------------------------------------------------------
+        # VALIDAÇÃO DOCUMENTO
+        # ------------------------------------------------------------
+
+        documento = re.sub(
+            r"\D",
+            "",
+            documento
+        )
+
+        if not documento:
+            messagebox.showwarning(
+                "Documento",
+                "Digite um CPF ou CNPJ."
             )
-
-            if paginas <= 0:
-                raise ValueError
-
-        except ValueError:
-
-            self.status.configure(
-                text="⚠️ Informe um número válido de páginas."
-            )
-
             return
 
-        # --------------------------------------------------------
-        # DESABILITAR BOTÕES
-        # --------------------------------------------------------
+        if tipo_documento == "CPF" and len(documento) != 11:
+            messagebox.showwarning(
+                "CPF inválido",
+                "O CPF deve possuir 11 dígitos."
+            )
+            return
 
-        self.botao_coletar.configure(
-            state="disabled"
+        if tipo_documento == "CNPJ" and len(documento) != 14:
+            messagebox.showwarning(
+                "CNPJ inválido",
+                "O CNPJ deve possuir 14 dígitos."
+            )
+            return
+
+        # ------------------------------------------------------------
+        # VALIDAÇÃO PÁGINAS
+        # ------------------------------------------------------------
+
+        try:
+            paginas = int(
+                paginas_texto
+            )
+        except ValueError:
+            messagebox.showwarning(
+                "Quantidade de páginas",
+                "Informe uma quantidade válida de páginas."
+            )
+            return
+
+        if paginas < 1:
+            messagebox.showwarning(
+                "Quantidade de páginas",
+                "A quantidade de páginas deve ser maior que zero."
+            )
+            return
+
+        # ------------------------------------------------------------
+        # PREPARA INTERFACE
+        # ------------------------------------------------------------
+
+        self.botao_iniciar.configure(
+            state="disabled",
+            text="⏳ Coletando..."
         )
 
         self.botao_excel.configure(
             state="disabled"
         )
 
-        # --------------------------------------------------------
-        # STATUS
-        # --------------------------------------------------------
-
-        self.status.configure(
-            text="Coletando processos..."
+        self.progress.set(
+            0
         )
 
-        # --------------------------------------------------------
-        # LIMPAR LOG
-        # --------------------------------------------------------
-
-        self.log_textbox.configure(
-            state="normal"
-        )
-
-        self.log_textbox.delete(
+        self.text_log.delete(
             "1.0",
             "end"
         )
 
-        self.log_textbox.configure(
-            state="disabled"
-        )
+        self.caminho_excel = None
+        self.dados = []
 
-        # --------------------------------------------------------
-        # RESETAR PROGRESSO
-        # --------------------------------------------------------
-
-        self.progress_bar.set(
-            0
-        )
-
-        self._log(
-            f"Iniciando coleta para {paginas} página(s)..."
-        )
-
-        # --------------------------------------------------------
+        # ------------------------------------------------------------
         # THREAD
-        # --------------------------------------------------------
+        # ------------------------------------------------------------
 
-        threading.Thread(
-            target=self._executar_coleta,
-            args=(paginas,),
+        thread = threading.Thread(
+            target=self.executar_coleta,
+            args=(
+                documento,
+                tipo_documento,
+                paginas
+            ),
             daemon=True
-        ).start()
+        )
 
-    # ============================================================
+        thread.start()
+
+    # ================================================================
     # EXECUTAR COLETA
-    # ============================================================
+    # ================================================================
 
-    def _executar_coleta(
+    def executar_coleta(
         self,
+        documento,
+        tipo_documento,
         paginas
     ):
 
         try:
 
-            # ----------------------------------------------------
-            # COLETAR
-            # ----------------------------------------------------
-
-            processos = self.service.coletar_processos(
-                paginas
+            self.adicionar_log(
+                "=" * 60
             )
 
-            self._log(
-                "Processando registros..."
+            self.adicionar_log(
+                "INICIANDO COLETA TRF5"
             )
 
-            dados_final = []
-
-            vistos = set()
-
-            total = len(
-                processos
+            self.adicionar_log(
+                "=" * 60
             )
 
-            # ----------------------------------------------------
-            # PROCESSAR
-            # ----------------------------------------------------
+            self.adicionar_log(
+                f"Documento: {documento}"
+            )
 
-            for i, processo in enumerate(
-                processos
+            self.adicionar_log(
+                f"Tipo: {tipo_documento}"
+            )
+
+            self.adicionar_log(
+                f"Páginas: {paginas}"
+            )
+
+            self.atualizar_status(
+                "Criando serviço TRF5..."
+            )
+
+            # ========================================================
+            # SERVICE
+            # ========================================================
+
+            service = TRF5Service(
+                documento=documento,
+                tipo_documento=tipo_documento
+            )
+
+            self.adicionar_log(
+                "[OK] TRF5Service criado."
+            )
+
+            # ========================================================
+            # COLETA
+            # ========================================================
+
+            self.atualizar_status(
+                "Consultando processos no TRF5..."
+            )
+
+            self.adicionar_log(
+                ""
+            )
+
+            self.adicionar_log(
+                "Iniciando coleta das páginas..."
+            )
+
+            resultado = service.coletar_processos(
+                documento=documento,
+                tipo_documento=tipo_documento,
+                limite_paginas=paginas,
+                extrair_detalhes=True
+            )
+
+            # ========================================================
+            # RESULTADO
+            # ========================================================
+
+            if isinstance(
+                resultado,
+                dict
             ):
 
-                numero = processo.get(
-                    "numero",
-                    processo.get(
-                        "processo",
-                        ""
-                    )
+                processos = resultado.get(
+                    "processos",
+                    []
                 )
 
-                # ------------------------------------------------
-                # SEM NÚMERO
-                # ------------------------------------------------
-
-                if not numero:
-                    continue
-
-                # ------------------------------------------------
-                # EVITAR DUPLICADOS
-                # ------------------------------------------------
-
-                if numero in vistos:
-                    continue
-
-                vistos.add(
-                    numero
+                self.total_trf5 = resultado.get(
+                    "total",
+                    len(processos)
                 )
 
-                # ------------------------------------------------
-                # ADICIONAR DADOS
-                # ------------------------------------------------
+            else:
 
-                dados_final.append({
+                processos = resultado
 
-                    "nome": processo.get(
-                        "nome",
-                        ""
-                    ),
+                self.total_trf5 = len(
+                    processos
+                )
 
-                    "numero": numero,
+            self.dados = processos
 
-                    "processo_originario": processo.get(
-                        "processo_originario",
-                        ""
-                    ),
-
-                    "link": processo.get(
-                        "link",
-                        ""
-                    ),
-
-                    "vara": processo.get(
-                        "vara",
-                        ""
-                    ),
-
-                    "banco": processo.get(
-                        "banco",
-                        ""
-                    ),
-
-                    "rpv": processo.get(
-                        "rpv",
-                        ""
-                    )
-                })
-
-                # ------------------------------------------------
-                # PROGRESSO
-                # ------------------------------------------------
-
-                if total > 0:
-
-                    progresso = (
-                        (i + 1) / total
-                    )
-
-                    self._atualizar_progresso(
-                        progresso
-                    )
-
-            # ----------------------------------------------------
-            # SALVAR DADOS
-            # ----------------------------------------------------
-
-            self.dados = dados_final
-
-            quantidade = len(
-                self.dados
+            self.processos_coletados = len(
+                processos
             )
 
-            # ====================================================
-            # GERAR EXCEL
-            # ====================================================
+            # ========================================================
+            # LOG
+            # ========================================================
 
-            if quantidade > 0:
+            self.adicionar_log(
+                ""
+            )
 
-                self._log(
+            self.adicionar_log(
+                "=" * 60
+            )
+
+            self.adicionar_log(
+                "COLETA FINALIZADA"
+            )
+
+            self.adicionar_log(
+                "=" * 60
+            )
+
+            self.adicionar_log(
+                f"Total informado pelo TRF5: "
+                f"{self.total_trf5}"
+            )
+
+            self.adicionar_log(
+                f"Processos coletados: "
+                f"{self.processos_coletados}"
+            )
+
+            # ========================================================
+            # PROGRESSO
+            # ========================================================
+
+            self.atualizar_progresso(
+                1
+            )
+
+            self.atualizar_status(
+                f"Coleta concluída: "
+                f"{self.processos_coletados} processos."
+            )
+
+            # ========================================================
+            # EXPORTAÇÃO
+            # ========================================================
+
+            if self.dados:
+
+                self.atualizar_status(
                     "Gerando arquivo Excel..."
                 )
 
-                self.caminho_excel = (
-                    self.exporter.exportar(
+                self.adicionar_log(
+                    ""
+                )
+
+                self.adicionar_log(
+                    "Gerando relatório Excel..."
+                )
+
+                exporter = ExcelExporter()
+
+                # ----------------------------------------------------
+                # Tenta utilizar a interface existente do exporter.
+                # ----------------------------------------------------
+
+                if hasattr(
+                    exporter,
+                    "exportar"
+                ):
+
+                    caminho = exporter.exportar(
                         self.dados
                     )
+
+                elif hasattr(
+                    exporter,
+                    "exportar_processos"
+                ):
+
+                    caminho = exporter.exportar_processos(
+                        self.dados
+                    )
+
+                else:
+
+                    raise AttributeError(
+                        "ExcelExporter não possui "
+                        "um método de exportação conhecido."
+                    )
+
+                self.caminho_excel = caminho
+
+                self.adicionar_log(
+                    f"[OK] Excel gerado: {caminho}"
                 )
 
-                self._log(
-                    "Arquivo salvo com sucesso:"
+                self.atualizar_status(
+                    "Consulta concluída com sucesso."
                 )
 
-                self._log(
-                    str(
-                        self.caminho_excel
+                self.after(
+                    0,
+                    lambda: self.botao_excel.configure(
+                        state="normal"
                     )
                 )
-
-                mensagem_status = (
-                    f"✅ Coleta finalizada! "
-                    f"{quantidade} processos encontrados."
-                )
-
-                sucesso = True
 
             else:
 
-                mensagem_status = (
-                    "ℹ️ Nenhum processo foi encontrado."
+                self.atualizar_status(
+                    "Nenhum processo encontrado."
                 )
 
-                sucesso = False
+                self.adicionar_log(
+                    "[AVISO] Nenhum processo foi encontrado."
+                )
 
         except Exception as e:
 
-            mensagem_status = (
-                f"❌ Erro durante a coleta: {e}"
+            erro = traceback.format_exc()
+
+            print(
+                "=========================================="
             )
 
-            self._log(
-                "ERRO CRÍTICO:"
+            print(
+                "ERRO NA COLETA"
             )
 
-            self._log(
-                f"{type(e).__name__}: {e}"
+            print(
+                erro
             )
 
-            sucesso = False
-
-        # --------------------------------------------------------
-        # FINALIZAR NA THREAD PRINCIPAL
-        # --------------------------------------------------------
-
-        self.after(
-            0,
-            self._finalizar_coleta,
-            mensagem_status,
-            sucesso
-        )
-
-    # ============================================================
-    # FINALIZAR COLETA
-    # ============================================================
-
-    def _finalizar_coleta(
-        self,
-        mensagem_status,
-        sucesso
-    ):
-
-        # --------------------------------------------------------
-        # PROGRESSO
-        # --------------------------------------------------------
-
-        if sucesso:
-
-            self.progress_bar.set(
-                1.0
+            print(
+                "=========================================="
             )
 
-        else:
-
-            self.progress_bar.set(
-                0
+            self.adicionar_log(
+                ""
             )
 
-        # --------------------------------------------------------
-        # STATUS
-        # --------------------------------------------------------
-
-        self.status.configure(
-            text=mensagem_status
-        )
-
-        # --------------------------------------------------------
-        # REATIVAR COLETA
-        # --------------------------------------------------------
-
-        self.botao_coletar.configure(
-            state="normal"
-        )
-
-        # --------------------------------------------------------
-        # HABILITAR EXCEL
-        # --------------------------------------------------------
-
-        if sucesso:
-
-            self.botao_excel.configure(
-                state="normal"
+            self.adicionar_log(
+                "ERRO NA COLETA"
             )
 
-            self._log(
-                "Operação concluída."
+            self.adicionar_log(
+                str(e)
             )
 
-    # ============================================================
+            self.atualizar_status(
+                "Erro durante a coleta."
+            )
+
+            self.after(
+                0,
+                lambda: messagebox.showerror(
+                    "Erro na coleta",
+                    f"Não foi possível concluir a consulta.\n\n"
+                    f"{e}"
+                )
+            )
+
+        finally:
+
+            self.after(
+                0,
+                lambda: self.botao_iniciar.configure(
+                    state="normal",
+                    text="▶ Iniciar Coleta"
+                )
+            )
+
+    # ================================================================
     # ABRIR EXCEL
-    # ============================================================
+    # ================================================================
 
     def abrir_excel(self):
 
-        print()
-        print(
-            "=========================================="
-        )
-        print(
-            "TENTANDO ABRIR ARQUIVO EXCEL"
-        )
-        print(
-            "=========================================="
-        )
-
-        # --------------------------------------------------------
-        # VERIFICAR CAMINHO
-        # --------------------------------------------------------
-
-        print(
-            "Caminho armazenado:"
-        )
-
-        print(
-            self.caminho_excel
-        )
-
         if not self.caminho_excel:
-
-            self._log(
-                "❌ Nenhum arquivo Excel foi gerado."
+            messagebox.showwarning(
+                "Excel",
+                "Nenhum arquivo Excel foi gerado."
             )
-
-            print(
-                "ERRO: self.caminho_excel está vazio."
-            )
-
             return
-
-        # --------------------------------------------------------
-        # CAMINHO ABSOLUTO
-        # --------------------------------------------------------
-
-        caminho = os.path.abspath(
-            str(
-                self.caminho_excel
-            )
-        )
-
-        print(
-            "Caminho absoluto:"
-        )
-
-        print(
-            caminho
-        )
-
-        # --------------------------------------------------------
-        # VERIFICAR ARQUIVO
-        # --------------------------------------------------------
-
-        if not os.path.isfile(
-            caminho
-        ):
-
-            self._log(
-                "❌ Arquivo Excel não encontrado."
-            )
-
-            self._log(
-                f"Caminho: {caminho}"
-            )
-
-            print(
-                "ERRO: arquivo não existe."
-            )
-
-            return
-
-        # --------------------------------------------------------
-        # ABRIR
-        # --------------------------------------------------------
 
         try:
 
-            if sys.platform.startswith(
-                "win"
+            if not os.path.exists(
+                self.caminho_excel
             ):
-
-                print(
-                    "Abrindo Excel..."
+                messagebox.showerror(
+                    "Excel",
+                    "O arquivo Excel não foi encontrado."
                 )
+                return
 
-                os.startfile(
-                    caminho
-                )
-
-            elif sys.platform == "darwin":
-
-                subprocess.Popen([
-                    "open",
-                    caminho
-                ])
-
-            else:
-
-                subprocess.Popen([
-                    "xdg-open",
-                    caminho
-                ])
-
-            self._log(
-                "✅ Arquivo Excel aberto."
-            )
-
-            print(
-                "Excel aberto com sucesso."
+            os.startfile(
+                self.caminho_excel
             )
 
         except Exception as e:
 
-            print(
-                "ERRO AO ABRIR EXCEL:"
-            )
-
-            print(
-                f"{type(e).__name__}: {e}"
-            )
-
-            self._log(
-                f"❌ Erro ao abrir Excel: {e}"
+            messagebox.showerror(
+                "Erro",
+                f"Não foi possível abrir o Excel.\n\n{e}"
             )

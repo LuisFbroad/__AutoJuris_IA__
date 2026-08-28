@@ -1,20 +1,19 @@
 import os
 import sys
 import traceback
+import customtkinter as ctk
 from tkinter import messagebox
 
-import customtkinter as ctk
-
 
 # ============================================================
-# CAMINHO DE RECURSOS
+# CONFIGURAÇÃO DE CAMINHOS
 # ============================================================
 
-def obter_caminho_recurso(caminho_relativo):
+def obter_caminho_recurso(*caminho_relativo):
     """
     Retorna o caminho absoluto de um recurso.
 
-    Funciona em:
+    Funciona tanto em:
         - execução normal pelo Python
         - executável criado pelo PyInstaller
     """
@@ -28,7 +27,7 @@ def obter_caminho_recurso(caminho_relativo):
 
     return os.path.join(
         base_dir,
-        caminho_relativo
+        *caminho_relativo
     )
 
 
@@ -48,7 +47,7 @@ if BASE_DIR not in sys.path:
 
 
 # ============================================================
-# IMPORTS
+# IMPORTAÇÕES DA INTERFACE
 # ============================================================
 
 try:
@@ -60,51 +59,46 @@ except Exception:
 
     erro = traceback.format_exc()
 
-    print(
-        "=========================================="
-    )
+    print("=" * 70)
+    print("ERRO AO IMPORTAR AS TELAS")
+    print("=" * 70)
+    print(erro)
 
-    print(
-        "ERRO AO IMPORTAR AS TELAS"
-    )
-
-    print(
-        erro
-    )
-
-    print(
-        "=========================================="
-    )
-
-    messagebox.showerror(
-        "Erro ao iniciar AutoJuris IA",
-        "Não foi possível carregar as telas do sistema.\n\n"
-        + erro
-    )
+    try:
+        messagebox.showerror(
+            "Erro ao iniciar AutoJuris IA",
+            "Não foi possível carregar as telas "
+            "do sistema.\n\n"
+            + erro
+        )
+    except Exception:
+        pass
 
     sys.exit(1)
 
 
 # ============================================================
-# APLICAÇÃO
+# APLICAÇÃO PRINCIPAL
 # ============================================================
 
 class App(ctk.CTk):
 
     def __init__(self):
-
         super().__init__()
 
         # ----------------------------------------------------
-        # CONFIGURAÇÃO DA JANELA
+        # CONFIGURAÇÕES DA JANELA
         # ----------------------------------------------------
 
         self.title(
             "AutoJuris IA"
         )
 
+        self.largura = 1100
+        self.altura = 700
+
         self.geometry(
-            "1100x700"
+            f"{self.largura}x{self.altura}"
         )
 
         self.minsize(
@@ -112,18 +106,19 @@ class App(ctk.CTk):
             600
         )
 
-        # Centraliza a janela
         self.centralizar_janela()
 
-        # Usuário
+        # ----------------------------------------------------
+        # ESTADO DA APLICAÇÃO
+        # ----------------------------------------------------
+
         self.usuario_logado = None
 
-        # Views
         self.login_view = None
         self.coleta_view = None
 
         # ----------------------------------------------------
-        # FECHAMENTO
+        # EVENTO DE FECHAMENTO
         # ----------------------------------------------------
 
         self.protocol(
@@ -132,7 +127,7 @@ class App(ctk.CTk):
         )
 
         # ----------------------------------------------------
-        # INICIA LOGIN
+        # INICIAR APLICAÇÃO
         # ----------------------------------------------------
 
         self.mostrar_login()
@@ -145,26 +140,23 @@ class App(ctk.CTk):
 
         self.update_idletasks()
 
-        largura = 1100
-        altura = 700
-
         largura_tela = self.winfo_screenwidth()
         altura_tela = self.winfo_screenheight()
 
         x = (
-            largura_tela - largura
+            largura_tela - self.largura
         ) // 2
 
         y = (
-            altura_tela - altura
+            altura_tela - self.altura
         ) // 2
 
         self.geometry(
-            f"{largura}x{altura}+{x}+{y}"
+            f"{self.largura}x{self.altura}+{x}+{y}"
         )
 
     # ========================================================
-    # LIMPAR JANELA
+    # LIMPAR CONTEÚDO DA JANELA
     # ========================================================
 
     def limpar_janela(self):
@@ -172,25 +164,24 @@ class App(ctk.CTk):
         for widget in self.winfo_children():
 
             try:
-
                 widget.destroy()
 
             except Exception as e:
 
                 print(
-                    f"Erro ao destruir widget: {e}"
+                    f"[AVISO] Erro ao destruir widget: {e}"
                 )
 
         self.update_idletasks()
 
     # ========================================================
-    # LOGIN
+    # MOSTRAR LOGIN
     # ========================================================
 
     def mostrar_login(self):
 
         print(
-            "Carregando tela de login..."
+            "[APP] Carregando tela de login..."
         )
 
         try:
@@ -210,70 +201,33 @@ class App(ctk.CTk):
             self.update_idletasks()
 
             print(
-                "Tela de login carregada."
+                "[APP] Tela de login carregada."
             )
 
-        except Exception as e:
+        except Exception:
 
-            erro = traceback.format_exc()
-
-            print(
-                "=========================================="
-            )
-
-            print(
-                "ERRO AO CARREGAR LOGIN"
-            )
-
-            print(
-                erro
-            )
-
-            print(
-                "=========================================="
-            )
-
-            messagebox.showerror(
-                "Erro",
-                "Erro ao carregar a tela de login:\n\n"
-                f"{e}\n\n"
-                f"{erro}"
+            self.mostrar_erro(
+                "Erro ao carregar a tela de login"
             )
 
     # ========================================================
     # LOGIN REALIZADO
     # ========================================================
 
-    def login_realizado(
-        self,
-        usuario
-    ):
+    def login_realizado(self, usuario):
 
+        print()
+        print("=" * 70)
+        print("[APP] LOGIN REALIZADO")
+        print("=" * 70)
         print(
-            "=========================================="
-        )
-
-        print(
-            "LOGIN REALIZADO"
-        )
-
-        print(
-            f"Usuário: {usuario}"
-        )
-
-        print(
-            "Iniciando carregamento da tela principal..."
-        )
-
-        print(
-            "=========================================="
+            f"[APP] Usuário: {usuario}"
         )
 
         self.usuario_logado = usuario
 
         # ----------------------------------------------------
-        # NÃO destrói o login imediatamente.
-        # Primeiro tenta criar a tela principal.
+        # CRIA TELA PRINCIPAL
         # ----------------------------------------------------
 
         nova_tela = None
@@ -281,7 +235,7 @@ class App(ctk.CTk):
         try:
 
             print(
-                "Criando ColetaView..."
+                "[APP] Criando ColetaView..."
             )
 
             nova_tela = ColetaView(
@@ -289,7 +243,7 @@ class App(ctk.CTk):
             )
 
             print(
-                "ColetaView criada com sucesso."
+                "[APP] ColetaView criada."
             )
 
             nova_tela.pack(
@@ -299,70 +253,40 @@ class App(ctk.CTk):
                 pady=15
             )
 
-            print(
-                "ColetaView adicionada à janela."
-            )
-
             self.update_idletasks()
 
-        except Exception as e:
-
-            erro = traceback.format_exc()
-
             print(
-                "=========================================="
+                "[APP] ColetaView exibida."
             )
 
-            print(
-                "ERRO AO CARREGAR TELA PRINCIPAL"
-            )
-
-            print(
-                erro
-            )
-
-            print(
-                "=========================================="
-            )
-
-            # ------------------------------------------------
-            # Se falhou, não destrói o login.
-            # ------------------------------------------------
+        except Exception:
 
             if nova_tela is not None:
 
                 try:
                     nova_tela.destroy()
-                except:
+                except Exception:
                     pass
 
-            messagebox.showerror(
-                "Erro ao carregar a tela principal",
-                "Não foi possível carregar a tela principal.\n\n"
-                f"Erro:\n{e}\n\n"
-                f"Detalhes técnicos:\n{erro}"
+            self.mostrar_erro(
+                "Erro ao carregar a tela principal"
             )
 
             return
 
         # ----------------------------------------------------
-        # Somente agora removemos o login.
+        # REMOVE LOGIN
         # ----------------------------------------------------
-
-        print(
-            "Removendo tela de login..."
-        )
 
         if self.login_view is not None:
 
             try:
-
                 self.login_view.destroy()
 
             except Exception as e:
 
                 print(
-                    f"Erro ao remover login: {e}"
+                    f"[AVISO] Erro ao remover login: {e}"
                 )
 
         self.login_view = None
@@ -370,23 +294,44 @@ class App(ctk.CTk):
 
         self.update_idletasks()
 
-        print(
-            "=========================================="
-        )
-
-        print(
-            "TELA PRINCIPAL CARREGADA COM SUCESSO"
-        )
-
-        print(
-            "=========================================="
-        )
+        print("=" * 70)
+        print("[APP] TELA PRINCIPAL CARREGADA")
+        print("=" * 70)
+        print()
 
     # ========================================================
-    # FECHAR
+    # MOSTRAR ERRO
+    # ========================================================
+
+    def mostrar_erro(self, titulo):
+
+        erro = traceback.format_exc()
+
+        print()
+        print("=" * 70)
+        print(titulo.upper())
+        print("=" * 70)
+        print(erro)
+
+        try:
+
+            messagebox.showerror(
+                titulo,
+                f"{erro}"
+            )
+
+        except Exception:
+            pass
+
+    # ========================================================
+    # FECHAR APLICAÇÃO
     # ========================================================
 
     def fechar_aplicacao(self):
+
+        print(
+            "[APP] Encerrando AutoJuris IA..."
+        )
 
         try:
 
@@ -398,34 +343,40 @@ class App(ctk.CTk):
 
 
 # ============================================================
-# EXECUÇÃO
+# CONFIGURAÇÃO DO CUSTOMTKINTER
 # ============================================================
 
-if __name__ == "__main__":
+def configurar_interface():
+
+    ctk.set_appearance_mode(
+        "System"
+    )
+
+    ctk.set_default_color_theme(
+        "blue"
+    )
+
+
+# ============================================================
+# PONTO DE ENTRADA
+# ============================================================
+
+def main():
 
     try:
 
-        # ----------------------------------------------------
-        # CONFIGURAÇÕES CUSTOMTKINTER
-        # ----------------------------------------------------
+        print("=" * 70)
+        print("             AUTOJURIS IA")
+        print("=" * 70)
+        print("[APP] Iniciando aplicação...")
 
-        ctk.set_appearance_mode(
-            "System"
-        )
-
-        ctk.set_default_color_theme(
-            "blue"
-        )
-
-        # ----------------------------------------------------
-        # CRIA APP
-        # ----------------------------------------------------
+        configurar_interface()
 
         app = App()
 
-        # ----------------------------------------------------
-        # LOOP PRINCIPAL
-        # ----------------------------------------------------
+        print(
+            "[APP] Aplicação iniciada."
+        )
 
         app.mainloop()
 
@@ -433,21 +384,11 @@ if __name__ == "__main__":
 
         erro = traceback.format_exc()
 
-        print(
-            "=========================================="
-        )
-
-        print(
-            "ERRO FATAL DO APLICATIVO"
-        )
-
-        print(
-            erro
-        )
-
-        print(
-            "=========================================="
-        )
+        print()
+        print("=" * 70)
+        print("ERRO FATAL DO APLICATIVO")
+        print("=" * 70)
+        print(erro)
 
         try:
 
@@ -456,6 +397,13 @@ if __name__ == "__main__":
                 erro
             )
 
-        except:
-
+        except Exception:
             pass
+
+
+# ============================================================
+# EXECUÇÃO
+# ============================================================
+
+if __name__ == "__main__":
+    main()

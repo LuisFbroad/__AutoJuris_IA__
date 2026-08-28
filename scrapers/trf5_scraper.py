@@ -1,6 +1,5 @@
 import os
 import re
-import sys
 import time
 import requests
 
@@ -11,93 +10,15 @@ from scrapers.processo_scraper import ProcessoScraper
 
 
 # ============================================================
-# CONFIGURAÇÃO DO .ENV
+# CONFIGURAÇÃO
 # ============================================================
 
-def obter_caminho_env():
+load_dotenv()
 
-    if getattr(sys, "frozen", False):
-
-        pasta_base = os.path.dirname(
-            sys.executable
-        )
-
-    else:
-
-        pasta_scrapers = os.path.dirname(
-            os.path.abspath(__file__)
-        )
-
-        pasta_base = os.path.dirname(
-            pasta_scrapers
-        )
-
-    return os.path.join(
-        pasta_base,
-        ".env"
-    )
-
-
-# ============================================================
-# CARREGAR .ENV
-# ============================================================
-
-CAMINHO_ENV = obter_caminho_env()
-
-print("==========================================")
-print("CARREGANDO CONFIGURAÇÕES DO TRF5")
-print("Arquivo .env:")
-print(CAMINHO_ENV)
-print("==========================================")
-
-
-if not os.path.exists(CAMINHO_ENV):
-
-    raise RuntimeError(
-        "Arquivo .env não encontrado.\n\n"
-        f"Caminho procurado:\n{CAMINHO_ENV}"
-    )
-
-
-load_dotenv(
-    CAMINHO_ENV
-)
-
-
-# ============================================================
-# CNPJ
-# ============================================================
-
-TRF5_CNPJ = os.getenv(
-    "TRF5_CNPJ"
-)
-
-
-if not TRF5_CNPJ:
-
-    raise RuntimeError(
-        "TRF5_CNPJ não encontrado no arquivo .env.\n\n"
-        f"Caminho procurado:\n{CAMINHO_ENV}"
-    )
-
-
-TRF5_CNPJ = re.sub(
-    r"\D",
-    "",
-    TRF5_CNPJ
-)
-
-
-if not TRF5_CNPJ:
-
-    raise RuntimeError(
-        "O TRF5_CNPJ encontrado no .env está vazio ou inválido."
-    )
-
-
-print(
-    "TRF5_CNPJ carregado com sucesso."
-)
+TRF5_BASE_URL = os.getenv(
+    "TRF5_BASE_URL",
+    "https://cp.trf5.jus.br"
+).rstrip("/")
 
 
 # ============================================================
@@ -108,382 +29,726 @@ class TRF5Scraper:
 
     def __init__(
         self,
-        max_threads=10
+        documento,
+        tipo_documento="CPF",
+        max_threads=5
     ):
+        if not documento:
+            raise ValueError(
+                "Documento não informado ou inválido."
+            )
 
-        self.base_url = (
-            "https://cp.trf5.jus.br"
+        self.documento = re.sub(
+            r"\D",
+            "",
+            str(documento)
         )
 
-        self._tempo_inicio = None
+        if not self.documento:
+            raise ValueError(
+                "Documento não informado ou inválido."
+            )
 
-        # ----------------------------------------------------
-        # CNPJ
-        # ----------------------------------------------------
+        self.tipo_documento = (
+            tipo_documento or "CPF"
+        ).upper()
 
-        self.cnpj = TRF5_CNPJ
+        self.max_threads = max_threads
 
-        # ----------------------------------------------------
-        # CONEXÃO HTTP
-        # ----------------------------------------------------
+        self.base_url = TRF5_BASE_URL
+
+        # ========================================================
+        # SESSÃO HTTP
+        # ========================================================
 
         self.session = requests.Session()
 
         self.session.headers.update({
             "User-Agent": (
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
-                "Chrome/151.0 Safari/537.36"
-            )
+                "Chrome/151.0.0.0 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,"
+                "application/xml;q=0.9,image/avif,"
+                "image/webp,*/*;q=0.8"
+            ),
+            "Accept-Language": "pt-BR,pt;q=0.9",
         })
 
-        # ----------------------------------------------------
-        # PROCESSO SCRAPER
-        # ----------------------------------------------------
+    # ============================================================
+    # MONTAR URL DA CONSULTA
+    # ============================================================
 
-        self.processo_scraper = ProcessoScraper(
-            session=self.session,
-            max_threads=max_threads
+    def montar_url(self, pagina=1):
+
+        # O TRF5 usa índice de página começando em 0.
+        pagina_indice = max(
+            int(pagina) - 1,
+            0
         )
 
-    # ========================================================
-    # BUSCAR PÁGINA
-    # ========================================================
+        url = (
+            f"{self.base_url}/processo/rpvprec/"
+            f"filtroRPVPrec/cpfcnpj/porData/"
+            f"tiporpv/ativos/vinculados/"
+            f"{self.documento}//{pagina_indice}"
+        )
+
+        return url
+
+    # ============================================================
+    # EXTRAIR TOTAL
+    # ============================================================
+
+    def extrair_total(self, soup):
+
+        texto = soup.get_text(
+            " ",
+            strip=True
+        )
+
+        # Exemplo:
+        #
+        # CPF/CNPJ: 89957709291
+        # ...
+        # Total: 385
+        #
+
+        match = re.search(
+            r"\bTotal\s*:\s*(\d+)",
+            texto,
+            re.IGNORECASE
+        )
+
+        if match:
+            return int(
+                match.group(1)
+            )
+
+        return 0
+
+    # ============================================================
+    # EXTRAIR PROCESSOS DA PÁGINA
+    # ============================================================
+
+    def extrair_processos(self, soup):
+
+        processos = []
+
+        # ========================================================
+        # PROCURA TODOS OS LINKS DE PROCESSO
+        # ========================================================
+
+        links = soup.find_all("a")
+
+        padrao_processo = re.compile(
+            r"\b\d{7}-\d{2}\.\d{4}\.4\.05\.\d{4}\b"
+        )
+
+        padrao_rpv = re.compile(
+            r"\bRPV\s*\d+\s*-\s*[A-Z]{2}\b",
+            re.IGNORECASE
+        )
+
+        vistos = set()
+
+        for link in links:
+
+            href = link.get(
+                "href",
+                ""
+            ).strip()
+
+            texto_link = link.get_text(
+                " ",
+                strip=True
+            )
+
+            # ====================================================
+            # VERIFICA SE É UM LINK DE PROCESSO
+            # ====================================================
+
+            match_processo = padrao_processo.search(
+                texto_link
+            )
+
+            if not match_processo:
+                continue
+
+            processo = match_processo.group(0)
+
+            # ====================================================
+            # EVITA DUPLICADOS
+            # ====================================================
+
+            if processo in vistos:
+                continue
+
+            vistos.add(processo)
+
+            # ====================================================
+            # URL ABSOLUTA
+            # ====================================================
+
+            if href.startswith("http://") or href.startswith(
+                "https://"
+            ):
+                url_processo = href
+            else:
+                url_processo = (
+                    self.base_url
+                    + "/"
+                    + href.lstrip("/")
+                )
+
+            # ====================================================
+            # PROCURA RPV
+            # ====================================================
+
+            rpv = ""
+
+            # Normalmente o RPV está na mesma linha/tabela.
+            elemento_pai = link
+
+            for _ in range(5):
+
+                if not elemento_pai:
+                    break
+
+                texto_pai = elemento_pai.get_text(
+                    " ",
+                    strip=True
+                )
+
+                match_rpv = padrao_rpv.search(
+                    texto_pai
+                )
+
+                if match_rpv:
+                    rpv = (
+                        match_rpv.group(0)
+                        .replace(" ", "")
+                        .upper()
+                    )
+                    break
+
+                elemento_pai = elemento_pai.parent
+
+            # ====================================================
+            # DATA E HORA DO MOVIMENTO
+            # ====================================================
+
+            data_movimento = ""
+            hora_movimento = ""
+
+            # A informação fica na mesma linha da tabela.
+            linha = link.find_parent("tr")
+
+            if linha:
+
+                texto_linha = linha.get_text(
+                    " ",
+                    strip=True
+                )
+
+                # Data
+                match_data = re.search(
+                    r"\b\d{2}/\d{2}/\d{4}\b",
+                    texto_linha
+                )
+
+                if match_data:
+                    data_movimento = (
+                        match_data.group(0)
+                    )
+
+                # Hora
+                match_hora = re.search(
+                    r"\b\d{2}:\d{2}\b",
+                    texto_linha
+                )
+
+                if match_hora:
+                    hora_movimento = (
+                        match_hora.group(0)
+                    )
+
+            # ====================================================
+            # SITUAÇÃO
+            # ====================================================
+
+            situacao = ""
+
+            if linha:
+
+                texto_linha = linha.get_text(
+                    " ",
+                    strip=True
+                )
+
+                if re.search(
+                    r"Processo\s+Arquivado",
+                    texto_linha,
+                    re.IGNORECASE
+                ):
+                    situacao = "Processo Arquivado"
+
+                elif re.search(
+                    r"Processo\s+Ativo",
+                    texto_linha,
+                    re.IGNORECASE
+                ):
+                    situacao = "Processo Ativo"
+
+            # ====================================================
+            # ADICIONA PROCESSO
+            # ====================================================
+
+            processos.append({
+                "link": url_processo,
+                "processo": processo,
+                "processo_originario": "",
+                "rpv": rpv,
+                "nome": "",
+                "vara": "",
+                "banco": "",
+                "data_decisao": "",
+                "data_movimento": data_movimento,
+                "hora_movimento": hora_movimento,
+                "situacao": situacao,
+            })
+
+        return processos
+
+    # ============================================================
+    # BUSCAR UMA PÁGINA
+    # ============================================================
 
     def buscar_pagina(
         self,
-        pagina
+        pagina=1
     ):
 
-        """
-        Busca uma página da listagem do TRF5
-        e coleta os detalhes dos processos.
-        """
-
-        # ----------------------------------------------------
-        # CRONÔMETRO
-        # ----------------------------------------------------
-
-        if (
-            pagina == 1
-            or self._tempo_inicio is None
-        ):
-
-            self._tempo_inicio = (
-                time.perf_counter()
-            )
-
-            print(
-                "\n" + "=" * 45
-            )
-
-            print(
-                "CRONÔMETRO DE COLETA INICIADO"
-            )
-
-            print(
-                "=" * 45
-            )
-
-        # ----------------------------------------------------
-        # URL
-        # ----------------------------------------------------
-
-        url = (
-            "https://cp.trf5.jus.br/processo/rpvprec/"
-            "filtroRPVPrec/cpfcnpj/porData/"
-            "tiporpv/ativos/vinculados/"
-            f"{self.cnpj}//"
-            f"{pagina}"
-        )
-
+        print()
+        print("=" * 60)
         print(
-            "=============================="
+            f"ACESSANDO PÁGINA {pagina}"
+        )
+        print("=" * 60)
+
+        url = self.montar_url(
+            pagina
         )
 
-        print(
-            f"ACESSANDO PÁGINA {pagina}:"
-        )
+        print(url)
+        print()
 
-        print(
-            url
-        )
-
-        print(
-            "=============================="
-        )
-
-        # ----------------------------------------------------
-        # REQUEST
-        # ----------------------------------------------------
+        inicio = time.time()
 
         try:
 
-            resposta = self.session.get(
-                url,
-                timeout=15
+            # ====================================================
+            # REQUEST
+            # ====================================================
+
+            print(
+                "[TRF5] Iniciando requisição HTTP..."
             )
 
             print(
-                "STATUS:",
-                resposta.status_code
+                "[TRF5] Timeout: 30 segundos"
+            )
+
+            resposta = self.session.get(
+                url,
+                timeout=30
+            )
+
+            tempo = time.time() - inicio
+
+            print(
+                f"[TRF5] Resposta recebida em "
+                f"{tempo:.2f} segundos"
+            )
+
+            print(
+                f"[TRF5] Status HTTP: "
+                f"{resposta.status_code}"
+            )
+
+            print(
+                f"[TRF5] Tamanho: "
+                f"{len(resposta.content)} bytes"
+            )
+
+            print(
+                f"[TRF5] Encoding: "
+                f"{resposta.encoding}"
+            )
+
+            print(
+                f"[TRF5] URL final: "
+                f"{resposta.url}"
             )
 
             if resposta.status_code != 200:
 
-                print(
-                    f"Página {pagina} retornou "
-                    f"status {resposta.status_code}"
+                raise RuntimeError(
+                    f"TRF5 retornou HTTP "
+                    f"{resposta.status_code}"
                 )
 
-                return []
+            # ====================================================
+            # BEAUTIFULSOUP
+            # ====================================================
 
-            # ------------------------------------------------
-            # HTML
-            # ------------------------------------------------
+            print(
+                "[TRF5] Criando BeautifulSoup..."
+            )
 
             soup = BeautifulSoup(
                 resposta.text,
                 "html.parser"
             )
 
-            # ------------------------------------------------
-            # PROCESSOS BÁSICOS
-            # ------------------------------------------------
+            print(
+                "[TRF5] BeautifulSoup criado."
+            )
 
-            processos_basicos = (
-                self.extrair_processos(
-                    soup
-                )
+            # ====================================================
+            # TOTAL
+            # ====================================================
+
+            print(
+                "[TRF5] Extraindo total..."
+            )
+
+            total = self.extrair_total(
+                soup
             )
 
             print(
-                f"Encontrados "
-                f"{len(processos_basicos)} "
-                f"processos na página {pagina}."
+                f"[TRF5] Total encontrado: "
+                f"{total}"
             )
 
-            # ------------------------------------------------
-            # NENHUM PROCESSO
-            # ------------------------------------------------
+            # ====================================================
+            # PROCESSOS
+            # ====================================================
 
-            if not processos_basicos:
+            print(
+                "[TRF5] Extraindo processos..."
+            )
 
-                tempo_parcial = (
-                    time.perf_counter()
-                    - self._tempo_inicio
-                )
+            processos = self.extrair_processos(
+                soup
+            )
+
+            print(
+                f"[TRF5] Processos encontrados: "
+                f"{len(processos)}"
+            )
+
+            for indice, processo in enumerate(
+                processos,
+                start=1
+            ):
 
                 print(
-                    f"Tempo acumulado: "
-                    f"{tempo_parcial:.2f} segundos"
+                    f"  [{indice}] "
+                    f"{processo.get('processo', '')} | "
+                    f"{processo.get('rpv', '')} | "
+                    f"{processo.get('data_movimento', '')} "
+                    f"{processo.get('hora_movimento', '')}"
                 )
 
-                return []
-
-            # ------------------------------------------------
-            # DETALHES
-            # ------------------------------------------------
-
-            processos_completos = (
-                self.processo_scraper
-                .extrair_detalhes_em_lote(
-                    processos_basicos
-                )
-            )
-
-            # ------------------------------------------------
-            # TEMPO
-            # ------------------------------------------------
-
-            tempo_parcial = (
-                time.perf_counter()
-                - self._tempo_inicio
-            )
+            print()
 
             print(
-                f"Tempo acumulado até "
-                f"a página {pagina}: "
-                f"{tempo_parcial:.2f} segundos\n"
+                "[TRF5] Página processada com sucesso."
             )
 
-            return processos_completos
+            # ====================================================
+            # RETORNO
+            # ====================================================
 
-        except requests.RequestException as e:
-
-            print(
-                f"Erro HTTP ao buscar "
-                f"página {pagina}: {e}"
-            )
-
-            return []
+            return {
+                "pagina": pagina,
+                "total": total,
+                "processos": processos
+            }
 
         except Exception as e:
 
+            print()
+            print("=" * 60)
             print(
-                f"Erro ao buscar "
-                f"página {pagina}: {e}"
+                "[TRF5] ERRO AO PROCESSAR PÁGINA"
             )
+            print("=" * 60)
+            print(e)
 
-            return []
+            raise
 
-    # ========================================================
-    # EXTRAIR PROCESSOS
-    # ========================================================
+    # ============================================================
+    # BUSCAR PÁGINA + DETALHES
+    # ============================================================
 
-    def extrair_processos(
+    def buscar_pagina_com_detalhes(
         self,
-        soup
+        pagina=1
     ):
 
-        """
-        Varre as tabelas da listagem e extrai:
-
-        - número do processo
-        - RPV
-        - link
-        """
-
-        processos = []
-
-        encontrados = set()
-
-        tabelas = soup.find_all(
-            "table"
+        resultado = self.buscar_pagina(
+            pagina=pagina
         )
 
-        # ----------------------------------------------------
-        # TABELAS
-        # ----------------------------------------------------
+        processos = resultado.get(
+            "processos",
+            []
+        )
 
-        for tabela in tabelas:
+        if not processos:
 
-            linhas = tabela.find_all(
-                "tr"
+            return resultado
+
+        print()
+        print("=" * 60)
+        print(
+            "EXTRAINDO DETALHES DOS PROCESSOS"
+        )
+        print("=" * 60)
+
+        print(
+            f"Processos para detalhar: "
+            f"{len(processos)}"
+        )
+
+        # ========================================================
+        # PROCESSO SCRAPER
+        # ========================================================
+
+        processo_scraper = ProcessoScraper(
+            session=self.session,
+            max_threads=self.max_threads
+        )
+
+        # ========================================================
+        # EXTRAÇÃO EM LOTE
+        # ========================================================
+
+        processos_completos = (
+            processo_scraper.extrair_detalhes_em_lote(
+                processos
             )
+        )
 
-            # ------------------------------------------------
-            # LINHAS
-            # ------------------------------------------------
+        # ========================================================
+        # GARANTE QUE DADOS DA LISTAGEM
+        # NÃO SEJAM PERDIDOS
+        # ========================================================
 
-            for linha in linhas:
-
-                colunas = linha.find_all(
-                    "td"
-                )
-
-                if len(colunas) < 3:
-                    continue
-
-                texto = " ".join(
-                    coluna.get_text(
-                        " ",
-                        strip=True
-                    )
-                    for coluna in colunas
-                )
-
-                # ------------------------------------------------
-                # NÚMERO PROCESSO
-                # ------------------------------------------------
-
-                processo = re.search(
-                    r"\d{7}-\d{2}\.\d{4}\.4\.05\.\d{4}",
-                    texto
-                )
-
-                if not processo:
-                    continue
-
-                numero = processo.group()
-
-                # ------------------------------------------------
-                # DUPLICADOS
-                # ------------------------------------------------
-
-                if numero in encontrados:
-                    continue
-
-                encontrados.add(
-                    numero
-                )
-
-                # ------------------------------------------------
-                # RPV
-                # ------------------------------------------------
-
-                rpv = re.search(
-                    r"RPV\s*\d+\s*-\s*[A-Z]{2}",
-                    texto,
-                    re.IGNORECASE
-                )
-
-                numero_rpv = (
-                    rpv.group()
-                    .replace(" ", "")
-                    .upper()
-                    if rpv
-                    else ""
-                )
-
-                # ------------------------------------------------
-                # LINK DO PROCESSO
-                # ------------------------------------------------
-
-                link = (
-                    f"{self.base_url}"
-                    f"/processo/{numero}"
-                )
-
-                processos.append({
-
-                    "numero": numero,
-
-                    "rpv": numero_rpv,
-
-                    "link": link
-
-                })
-
-        return processos
-
-    # ========================================================
-    # DETALHES DO PROCESSO
-    # ========================================================
-
-    def extrair_detalhes_processo(
-        self,
-        url_ou_processo
-    ):
-
-        """
-        Método de compatibilidade
-        com chamadas antigas.
-        """
-
-        if isinstance(
-            url_ou_processo,
-            dict
+        for original, completo in zip(
+            processos,
+            processos_completos
         ):
 
-            url = (
-                url_ou_processo.get(
-                    "link",
-                    ""
+            if not completo.get("processo"):
+                completo["processo"] = (
+                    original.get("processo", "")
+                )
+
+            if not completo.get("rpv"):
+                completo["rpv"] = (
+                    original.get("rpv", "")
+                )
+
+            if not completo.get("data_movimento"):
+                completo["data_movimento"] = (
+                    original.get(
+                        "data_movimento",
+                        ""
+                    )
+                )
+
+            if not completo.get("hora_movimento"):
+                completo["hora_movimento"] = (
+                    original.get(
+                        "hora_movimento",
+                        ""
+                    )
+                )
+
+            if not completo.get("situacao"):
+                completo["situacao"] = (
+                    original.get(
+                        "situacao",
+                        ""
+                    )
+                )
+
+            if not completo.get("link"):
+                completo["link"] = (
+                    original.get("link", "")
+                )
+
+        resultado["processos"] = (
+            processos_completos
+        )
+
+        print()
+        print(
+            "[TRF5] Detalhes extraídos."
+        )
+
+        return resultado
+
+    # ============================================================
+    # BUSCAR VÁRIAS PÁGINAS
+    # ============================================================
+
+    def buscar_todas_paginas(
+        self,
+        max_paginas=None,
+        extrair_detalhes=True
+    ):
+
+        print()
+        print("=" * 60)
+        print(
+            "INICIANDO COLETA COMPLETA DO TRF5"
+        )
+        print("=" * 60)
+
+        todos_processos = []
+
+        # ========================================================
+        # PRIMEIRA PÁGINA
+        # ========================================================
+
+        if extrair_detalhes:
+
+            resultado_primeira = (
+                self.buscar_pagina_com_detalhes(
+                    pagina=1
                 )
             )
 
         else:
 
-            url = str(
-                url_ou_processo
+            resultado_primeira = (
+                self.buscar_pagina(
+                    pagina=1
+                )
             )
 
-        return (
-            self.processo_scraper
-            .extrair_detalhes_processo(
-                url
+        total = resultado_primeira.get(
+            "total",
+            0
+        )
+
+        processos_primeira = (
+            resultado_primeira.get(
+                "processos",
+                []
             )
         )
+
+        todos_processos.extend(
+            processos_primeira
+        )
+
+        # ========================================================
+        # CALCULAR NÚMERO DE PÁGINAS
+        #
+        # O TRF5 mostrou:
+        #
+        # Total: 385
+        # 10 processos por página
+        #
+        # Portanto:
+        #
+        # ceil(385 / 10) = 39 páginas
+        # ========================================================
+
+        processos_por_pagina = 10
+
+        total_paginas = (
+            (total + processos_por_pagina - 1)
+            // processos_por_pagina
+        )
+
+        if max_paginas is not None:
+
+            total_paginas = min(
+                total_paginas,
+                max_paginas
+            )
+
+        print()
+        print(
+            f"[TRF5] Total de processos: {total}"
+        )
+
+        print(
+            f"[TRF5] Total estimado de páginas: "
+            f"{total_paginas}"
+        )
+
+        # ========================================================
+        # DEMAIS PÁGINAS
+        # ========================================================
+
+        for pagina in range(
+            2,
+            total_paginas + 1
+        ):
+
+            if extrair_detalhes:
+
+                resultado = (
+                    self.buscar_pagina_com_detalhes(
+                        pagina=pagina
+                    )
+                )
+
+            else:
+
+                resultado = (
+                    self.buscar_pagina(
+                        pagina=pagina
+                    )
+                )
+
+            processos = resultado.get(
+                "processos",
+                []
+            )
+
+            todos_processos.extend(
+                processos
+            )
+
+            print()
+            print(
+                f"[TRF5] Progresso: "
+                f"{pagina}/{total_paginas} páginas"
+            )
+
+            print(
+                f"[TRF5] Processos coletados: "
+                f"{len(todos_processos)}"
+            )
+
+        # ========================================================
+        # RETORNO FINAL
+        # ========================================================
+
+        return {
+            "total": total,
+            "total_paginas": total_paginas,
+            "processos": todos_processos
+        }
