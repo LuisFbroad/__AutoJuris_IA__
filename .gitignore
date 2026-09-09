@@ -13,4 +13,4 @@ exports/*.xlsx
 
 *.log
 
-relatorio_rpv.xlsx
+/relatorio_rpv.xlsx
