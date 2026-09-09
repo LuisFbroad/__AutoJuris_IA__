@@ -12,3 +12,5 @@ dados/*.xlsx
 exports/*.xlsx
 
 *.log
+
+relatorio_rpv.xlsx
