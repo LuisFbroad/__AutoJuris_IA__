@@ -1,5 +1,5 @@
+import os
 import re
-
 import requests
 
 from bs4 import BeautifulSoup
@@ -9,43 +9,47 @@ from concurrent.futures import (
     as_completed
 )
 
+from scrapers.extractors.processo_extractor import (
+    ProcessoExtractor
+)
+
+from scrapers.extractors.rpv_extractor import (
+    RPVExtractor
+)
+
+from scrapers.extractors.dados_extractor import (
+    DadosExtractor
+)
+
+from validators.processo_validator import (
+    ProcessoValidator
+)
+
 
 ESTADOS_BRASIL = {
     "PERNAMBUCO": "PE",
     "RECIFE": "PE",
     "CABO DE SANTO AGOSTINHO": "PE",
     "CABO": "PE",
-    "- PE": "PE",
-    " PE": "PE",
 
     "ALAGOAS": "AL",
     "MACEIÓ": "AL",
     "MACEIO": "AL",
-    "- AL": "AL",
-    " AL": "AL",
 
     "CEARÁ": "CE",
     "CEARA": "CE",
     "FORTALEZA": "CE",
-    "- CE": "CE",
-    " CE": "CE",
 
     "SERGIPE": "SE",
     "ARACAJU": "SE",
-    "- SE": "SE",
-    " SE": "SE",
 
     "RIO GRANDE DO NORTE": "RN",
     "NATAL": "RN",
-    "- RN": "RN",
-    " RN": "RN",
 
     "PARAÍBA": "PB",
     "PARAIBA": "PB",
     "JOÃO PESSOA": "PB",
-    "JOAO PESSOA": "PB",
-    "- PB": "PB",
-    " PB": "PB"
+    "JOAO PESSOA": "PB"
 }
 
 
@@ -54,56 +58,87 @@ class ProcessoScraper:
     def __init__(
         self,
         session=None,
-        max_threads=10
+        max_threads=10,
+        salvar_html=False,
+        diretorio_html="dados/bruto"
     ):
-        self.session = session or requests.Session()
+
+        self.session = (
+            session
+            or requests.Session()
+        )
 
         self.max_threads = max_threads
 
+        self.salvar_html = salvar_html
+
+        self.diretorio_html = (
+            diretorio_html
+        )
+
         if "User-Agent" not in self.session.headers:
+
             self.session.headers.update({
                 "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "Mozilla/5.0 "
+                    "(Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 "
                     "(KHTML, like Gecko) "
-                    "Chrome/151.0.0.0 Safari/537.36"
+                    "Chrome/151.0.0.0 "
+                    "Safari/537.36"
                 )
             })
 
-    # ================================================================
-    # EXTRAIR DETALHES DE UM PROCESSO
-    # ================================================================
+        # =====================================================
+        # EXTRACTORS
+        # =====================================================
 
-    def extrair_detalhes_processo(self, url):
+        self.processo_extractor = (
+            ProcessoExtractor()
+        )
+
+        self.rpv_extractor = (
+            RPVExtractor()
+        )
+
+        self.dados_extractor = (
+            DadosExtractor()
+        )
+
+    # =========================================================
+    # EXTRAIR DETALHES
+    # =========================================================
+
+    def extrair_detalhes_processo(
+        self,
+        url
+    ):
+
+        dados = self._dados_vazios(url)
 
         try:
 
             resposta = self.session.get(
                 url,
-                timeout=10
+                timeout=20
             )
 
-            if resposta.status_code != 200:
+            resposta.raise_for_status()
 
-                print(
-                    f"[ERRO HTTP] {url} - "
-                    f"Status: {resposta.status_code}"
+            # =================================================
+            # SALVAR HTML
+            # =================================================
+
+            if self.salvar_html:
+
+                self._salvar_html(
+                    url,
+                    resposta.text
                 )
 
-                return {
-                    "link": url,
-                    "processo": "",
-                    "processo_originario": "",
-                    "rpv": "",
-                    "nome": "",
-                    "vara": "",
-                    "banco": "",
-                    "data_decisao": ""
-                }
-
-            # ========================================================
-            # HTML
-            # ========================================================
+            # =================================================
+            # BEAUTIFULSOUP
+            # =================================================
 
             soup = BeautifulSoup(
                 resposta.text,
@@ -115,299 +150,112 @@ class ProcessoScraper:
                 strip=True
             )
 
-            # ========================================================
-            # DADOS
-            # ========================================================
+            # =================================================
+            # PROCESSO
+            # =================================================
 
-            dados = {
-                "link": url,
-                "processo": "",
-                "processo_originario": "",
-                "rpv": "",
-                "nome": "",
-                "vara": "",
-                "banco": "",
-                "data_decisao": ""
-            }
-
-            # ========================================================
-            # PROCESSO ATUAL
-            # ========================================================
-
-            # Exemplo da página:
-            #
-            # PROCESSO Nº 0482527-54.2026.4.05.0000
-
-            processo = re.search(
-                r"PROCESSO\s*N[º°]?\s*:?\s*"
-                r"(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})",
-                texto,
-                re.IGNORECASE
+            processo = (
+                self.processo_extractor.extrair(
+                    soup,
+                    texto
+                )
             )
 
-            if processo:
-
-                dados["processo"] = (
-                    processo.group(1).strip()
-                )
-
-            # ========================================================
-            # PROCESSO ORIGINÁRIO
-            # ========================================================
-
-            # Exemplo real da página:
-            #
-            # PROC. ORIGINÁRIO Nº: 00507369820254058300
-            #
-            # Também aceita:
-            #
-            # PROC. ORIGINÁRIO Nº:
-            # 00507369820254058300
-
-            processo_originario = re.search(
-                r"PROC\.?\s*"
-                r"ORIGIN[ÁA]RIO"
-                r"\s*N[º°]?"
-                r"\s*:?\s*"
-                r"(\d{20})",
-                texto,
-                re.IGNORECASE
+            dados.update(
+                processo
             )
 
-            if processo_originario:
-
-                dados["processo_originario"] = (
-                    processo_originario
-                    .group(1)
-                    .strip()
-                )
-
-            # ========================================================
-            # FALLBACK PROCESSO ORIGINÁRIO
-            # ========================================================
-
-            # Caso o TRF5 apresente o processo no formato CNJ:
-            #
-            # 0011409-02.2023.4.05.8500
-
-            if not dados["processo_originario"]:
-
-                processo_originario_formatado = re.search(
-                    r"PROC\.?\s*"
-                    r"ORIGIN[ÁA]RIO"
-                    r".{0,100}?"
-                    r"(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})",
-                    texto,
-                    re.IGNORECASE | re.DOTALL
-                )
-
-                if processo_originario_formatado:
-
-                    dados["processo_originario"] = (
-                        processo_originario_formatado
-                        .group(1)
-                        .strip()
-                    )
-
-            # ========================================================
+            # =================================================
             # RPV
-            # ========================================================
+            # =================================================
 
-            # Exemplos:
-            #
-            # RPV1234567-PE
-            # RPV 1234567-PE
-            # RPV1234567-AL
-            # RPV3916938-SE
-
-            rpv = re.search(
-                r"\b("
-                r"RPV\s*\d+\s*-\s*[A-Z]{2}"
-                r")\b",
-                texto,
-                re.IGNORECASE
+            rpv = (
+                self.rpv_extractor.extrair(
+                    soup,
+                    texto
+                )
             )
 
-            if rpv:
-
-                dados["rpv"] = (
-                    rpv.group(1)
-                    .replace(" ", "")
-                    .upper()
-                )
-
-            # ========================================================
-            # FALLBACK RPV
-            # ========================================================
-
-            if not dados["rpv"]:
-
-                rpv_requisicao = re.search(
-                    r"REQUISI[ÇC][AÃ]O\s+DE\s+PEQUENO\s+VALOR"
-                    r".{0,200}?"
-                    r"\b("
-                    r"RPV\s*\d+\s*-\s*[A-Z]{2}"
-                    r")\b",
-                    texto,
-                    re.IGNORECASE | re.DOTALL
-                )
-
-                if rpv_requisicao:
-
-                    dados["rpv"] = (
-                        rpv_requisicao
-                        .group(1)
-                        .replace(" ", "")
-                        .upper()
-                    )
-
-            # ========================================================
-            # NOME / REQUERENTE
-            # ========================================================
-
-            # Exemplo real:
-            #
-            # REQTE : ALISSON RIBEIRO LUCENA
-
-            nome = re.search(
-                r"REQTE\s*:?\s*([^\n\r]+)",
-                texto,
-                re.IGNORECASE
+            dados.update(
+                rpv
             )
 
-            if nome:
+            # =================================================
+            # DEMAIS DADOS
+            # =================================================
 
-                nome_texto = (
-                    nome.group(1)
-                    .strip()
+            outros = (
+                self.dados_extractor.extrair(
+                    soup,
+                    texto
                 )
-
-                # Remove possíveis caracteres extras
-                nome_texto = re.sub(
-                    r"^[|:\-]+",
-                    "",
-                    nome_texto
-                ).strip()
-
-                dados["nome"] = nome_texto
-
-            # ========================================================
-            # FALLBACK - REQUERENTE
-            # ========================================================
-
-            if not dados["nome"]:
-
-                requerente = re.search(
-                    r"REQUERENTE\s*:?\s*([^\n\r]+)",
-                    texto,
-                    re.IGNORECASE
-                )
-
-                if requerente:
-
-                    dados["nome"] = (
-                        requerente
-                        .group(1)
-                        .strip()
-                    )
-
-            # ========================================================
-            # FALLBACK - BENEFICIÁRIO
-            # ========================================================
-
-            if not dados["nome"]:
-
-                beneficiario = re.search(
-                    r"BENEFICI[ÁA]RIO\s*:?\s*([^\n\r]+)",
-                    texto,
-                    re.IGNORECASE
-                )
-
-                if beneficiario:
-
-                    dados["nome"] = (
-                        beneficiario
-                        .group(1)
-                        .strip()
-                    )
-
-            # ========================================================
-            # VARA
-            # ========================================================
-
-            # Exemplo real:
-            #
-            # VARA: 1ª Vara Federal de Pernambuco
-            # (Especializada em Naturalização)
-
-            vara = re.search(
-                r"VARA\s*:?\s*([^\n\r]+)",
-                texto,
-                re.IGNORECASE
             )
 
-            if vara:
+            dados.update(
+                outros
+            )
 
-                vara_texto = (
-                    vara.group(1)
-                    .strip()
-                )
+            # =================================================
+            # VARA FORMATADA
+            # =================================================
+
+            if dados.get("vara"):
 
                 dados["vara"] = (
                     self.formatar_vara(
-                        vara_texto
+                        dados["vara"]
                     )
                 )
 
-            # ========================================================
-            # BANCO
-            # ========================================================
+            # =================================================
+            # VALIDAÇÃO
+            # =================================================
 
-            banco = re.search(
-                r"BANCO\s*:?\s*([^\n\r]+)",
-                texto,
-                re.IGNORECASE
+            dados["processo_valido"] = (
+                ProcessoValidator.validar_processo(
+                    dados.get("processo")
+                )
             )
 
-            if banco:
-
-                dados["banco"] = (
-                    banco.group(1)
-                    .strip()
+            dados["rpv_valida"] = (
+                ProcessoValidator.validar_rpv(
+                    dados.get("rpv")
                 )
-
-            # ========================================================
-            # DATA DA DECISÃO
-            # ========================================================
-
-            decisao = re.search(
-                r"Em\s+"
-                r"(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})"
-                r".{0,100}?"
-                r"Concluso\s+para\s+decis[ãa]o",
-                texto,
-                re.IGNORECASE | re.DOTALL
             )
 
-            if decisao:
-
-                dados["data_decisao"] = (
-                    decisao.group(1)
-                    .strip()
+            dados["nome_valido"] = (
+                ProcessoValidator.validar_nome(
+                    dados.get("nome")
                 )
+            )
 
-            # ========================================================
-            # DEBUG
-            # ========================================================
+            # =================================================
+            # CONFIANÇA
+            # =================================================
+
+            dados["confianca"] = (
+                ProcessoValidator.calcular_confianca(
+                    dados
+                )
+            )
+
+            # =================================================
+            # CLASSIFICAÇÃO
+            # =================================================
+
+            dados["nivel_confianca"] = (
+                self.classificar_confianca(
+                    dados["confianca"]
+                )
+            )
 
             print(
                 "[OK] "
-                f"Processo: {dados['processo']} | "
-                f"Originário: {dados['processo_originario']} | "
-                f"RPV: {dados['rpv']} | "
-                f"Nome: {dados['nome']} | "
-                f"Vara: {dados['vara']} | "
-                f"Banco: {dados['banco']}"
+                f"{dados.get('processo', '')} | "
+                f"{dados.get('rpv', '')} | "
+                f"{dados.get('nome', '')} | "
+                f"Confiança: "
+                f"{dados.get('confianca', 0):.0%}"
             )
 
             return dados
@@ -415,24 +263,73 @@ class ProcessoScraper:
         except Exception as e:
 
             print(
-                f"[ERRO] Ao raspar detalhes de "
+                "[ERRO] "
                 f"{url}: {e}"
             )
 
-            return {
-                "link": url,
-                "processo": "",
-                "processo_originario": "",
-                "rpv": "",
-                "nome": "",
-                "vara": "",
-                "banco": "",
-                "data_decisao": ""
-            }
+            dados["erro"] = str(e)
 
-    # ================================================================
-    # EXTRAIR DETALHES EM LOTE
-    # ================================================================
+            return dados
+
+    # =========================================================
+    # DADOS VAZIOS
+    # =========================================================
+
+    @staticmethod
+    def _dados_vazios(url):
+
+        return {
+            "link": url,
+
+            "processo": "",
+            "processo_originario": "",
+
+            "rpv": "",
+            "nome": "",
+
+            "vara": "",
+            "banco": "",
+
+            "data_decisao": "",
+
+            "data_movimento": "",
+            "hora_movimento": "",
+
+            "situacao": "",
+
+            "origem_processo": "",
+            "origem_rpv": "",
+
+            "processo_valido": False,
+            "rpv_valida": False,
+            "nome_valido": False,
+
+            "confianca": 0.0,
+            "nivel_confianca": "BAIXA",
+
+            "erro": ""
+        }
+
+    # =========================================================
+    # CLASSIFICAR CONFIANÇA
+    # =========================================================
+
+    @staticmethod
+    def classificar_confianca(
+        confianca
+    ):
+
+        if confianca >= 0.90:
+            return "ALTA"
+
+        if confianca >= 0.70:
+            return "MÉDIA"
+
+        return "BAIXA"
+
+    # =========================================================
+    # EXTRAÇÃO EM LOTE
+    # =========================================================
 
     def extrair_detalhes_em_lote(
         self,
@@ -441,92 +338,151 @@ class ProcessoScraper:
 
         processos_completos = []
 
+        if not lista_processos:
+            return []
+
         with ThreadPoolExecutor(
             max_workers=self.max_threads
         ) as executor:
 
-            future_to_proc = {
+            futuros = {
                 executor.submit(
                     self.extrair_detalhes_processo,
-                    proc["link"]
-                ): proc
-                for proc in lista_processos
+                    processo.get("link", "")
+                ): processo
+
+                for processo in lista_processos
+                if processo.get("link")
             }
 
-            for future in as_completed(
-                future_to_proc
+            for futuro in as_completed(
+                futuros
             ):
 
-                proc_original = (
-                    future_to_proc[future]
+                processo_original = (
+                    futuros[futuro]
                 )
 
                 try:
 
-                    detalhes = future.result()
+                    detalhes = (
+                        futuro.result()
+                    )
 
-                    # =================================================
-                    # ATUALIZA OS DADOS DO PROCESSO
-                    # =================================================
+                    # Mantém dados da listagem
+                    # caso a página de detalhes
+                    # não contenha algum deles.
 
-                    proc_original.update({
+                    for campo in [
+                        "processo",
+                        "rpv",
+                        "data_movimento",
+                        "hora_movimento",
+                        "situacao",
+                        "link"
+                    ]:
 
-                        "processo": detalhes.get(
-                            "processo",
-                            ""
-                        ),
+                        if not detalhes.get(campo):
 
-                        "processo_originario": detalhes.get(
-                            "processo_originario",
-                            ""
-                        ),
+                            detalhes[campo] = (
+                                processo_original.get(
+                                    campo,
+                                    ""
+                                )
+                            )
 
-                        "rpv": detalhes.get(
-                            "rpv",
-                            ""
-                        ),
-
-                        "nome": detalhes.get(
-                            "nome",
-                            ""
-                        ),
-
-                        "vara": detalhes.get(
-                            "vara",
-                            ""
-                        ),
-
-                        "banco": detalhes.get(
-                            "banco",
-                            ""
-                        ),
-
-                        "data_decisao": detalhes.get(
-                            "data_decisao",
-                            ""
-                        )
-                    })
+                    processo_original.update(
+                        detalhes
+                    )
 
                     processos_completos.append(
-                        proc_original
+                        processo_original
                     )
 
                 except Exception as e:
 
                     print(
-                        "[ERRO] Ao processar "
-                        f"processo: {e}"
+                        "[ERRO] "
+                        f"Processo: {e}"
                     )
 
                     processos_completos.append(
-                        proc_original
+                        processo_original
                     )
 
         return processos_completos
 
-    # ================================================================
+    # =========================================================
+    # SALVAR HTML
+    # =========================================================
+
+    def _salvar_html(
+        self,
+        url,
+        html
+    ):
+
+        try:
+
+            os.makedirs(
+                self.diretorio_html,
+                exist_ok=True
+            )
+
+            processo = self._extrair_id_url(
+                url
+            )
+
+            if not processo:
+
+                processo = "pagina"
+
+            caminho = os.path.join(
+                self.diretorio_html,
+                f"{processo}.html"
+            )
+
+            with open(
+                caminho,
+                "w",
+                encoding="utf-8"
+            ) as arquivo:
+
+                arquivo.write(
+                    html
+                )
+
+        except Exception as e:
+
+            print(
+                "[AVISO] "
+                f"Não foi possível salvar HTML: {e}"
+            )
+
+    # =========================================================
+    # IDENTIFICAR ID
+    # =========================================================
+
+    @staticmethod
+    def _extrair_id_url(url):
+
+        match = re.search(
+            r"(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})",
+            url
+        )
+
+        if match:
+            return (
+                match.group(1)
+                .replace(".", "_")
+                .replace("-", "_")
+            )
+
+        return ""
+
+    # =========================================================
     # FORMATAR VARA
-    # ================================================================
+    # =========================================================
 
     def formatar_vara(
         self,
@@ -542,58 +498,39 @@ class ProcessoScraper:
             .upper()
         )
 
-        # ============================================================
-        # NÚMERO DA VARA
-        # ============================================================
+        numero = ""
 
         match_numero = re.search(
             r"(\d+)\s*(?:ª|A|º|\.)?",
             vara_limpa
         )
 
-        # ============================================================
-        # ESTADO
-        # ============================================================
+        if match_numero:
 
-        sigla_estado = ""
-
-        for termo, sigla in ESTADOS_BRASIL.items():
-
-            if termo in vara_limpa:
-
-                sigla_estado = sigla
-
-                break
-
-        # ============================================================
-        # FORMATO PADRÃO
-        # ============================================================
-
-        if match_numero and sigla_estado:
-
-            numero_vara = (
+            numero = (
                 match_numero.group(1)
             )
 
+        estado = ""
+
+        for termo, sigla in (
+            ESTADOS_BRASIL.items()
+        ):
+
+            if termo in vara_limpa:
+
+                estado = sigla
+                break
+
+        if numero and estado:
+
             return (
-                f"{numero_vara}º VF "
-                f"{sigla_estado}"
+                f"{numero}ª VARA FEDERAL - "
+                f"{estado}"
             )
 
-        # ============================================================
-        # FALLBACK
-        # ============================================================
+        if estado:
 
-        vara_formatada = re.sub(
-            r"\bVARA\s+FEDERAL\s+DE\s+",
-            "VF ",
-            vara_limpa
-        )
+            return estado
 
-        vara_formatada = re.sub(
-            r"\bVARA\s+",
-            "VF ",
-            vara_formatada
-        )
-
-        return vara_formatada.strip()
+        return vara.strip()

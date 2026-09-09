@@ -752,3 +752,71 @@ class TRF5Scraper:
             "total_paginas": total_paginas,
             "processos": todos_processos
         }
+
+    def comparar_resultados(
+    self,
+    primeira_busca,
+    segunda_busca
+    ):
+
+        mapa_1 = {
+            processo.get("processo"): processo
+            for processo in primeira_busca
+            if processo.get("processo")
+        }
+
+        mapa_2 = {
+            processo.get("processo"): processo
+            for processo in segunda_busca
+            if processo.get("processo")
+        }
+
+        ids_1 = set(mapa_1.keys())
+        ids_2 = set(mapa_2.keys())
+
+        adicionados = ids_2 - ids_1
+        removidos = ids_1 - ids_2
+        mantidos = ids_1 & ids_2
+
+        return {
+            "igual": ids_1 == ids_2,
+            "adicionados": list(adicionados),
+            "removidos": list(removidos),
+            "mantidos": list(mantidos),
+            "total_primeira": len(ids_1),
+            "total_segunda": len(ids_2)
+        }
+
+    def comparar_resultados(
+        self,
+        primeira_busca,
+        segunda_busca
+    ):
+
+        mapa_1 = {
+            processo.get("processo"): processo
+            for processo in primeira_busca
+            if processo.get("processo")
+        }
+
+        mapa_2 = {
+            processo.get("processo"): processo
+            for processo in segunda_busca
+            if processo.get("processo")
+        }
+
+        ids_1 = set(mapa_1.keys())
+        ids_2 = set(mapa_2.keys())
+
+        adicionados = ids_2 - ids_1
+        removidos = ids_1 - ids_2
+        mantidos = ids_1 & ids_2
+
+        return {
+            "igual": ids_1 == ids_2,
+            "adicionados": list(adicionados),
+            "removidos": list(removidos),
+            "mantidos": list(mantidos),
+            "total_primeira": len(ids_1),
+            "total_segunda": len(ids_2)
+        }

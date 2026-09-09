@@ -30,7 +30,7 @@ class ColetaView(ctk.CTkFrame):
         # ============================================================
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(6, weight=1)
 
         # ============================================================
         # CABEÇALHO
@@ -40,6 +40,7 @@ class ColetaView(ctk.CTkFrame):
             self,
             corner_radius=10
         )
+
         self.frame_header.grid(
             row=0,
             column=0,
@@ -53,8 +54,12 @@ class ColetaView(ctk.CTkFrame):
             weight=1
         )
 
-        # Logo
+        # ============================================================
+        # LOGO
+        # ============================================================
+
         try:
+
             caminho_logo = os.path.join(
                 os.path.dirname(
                     os.path.dirname(
@@ -68,6 +73,7 @@ class ColetaView(ctk.CTkFrame):
             )
 
             if os.path.exists(caminho_logo):
+
                 from PIL import Image
 
                 imagem = ctk.CTkImage(
@@ -91,6 +97,10 @@ class ColetaView(ctk.CTkFrame):
 
         except Exception:
             pass
+
+        # ============================================================
+        # TÍTULO
+        # ============================================================
 
         self.titulo = ctk.CTkLabel(
             self.frame_header,
@@ -131,9 +141,9 @@ class ColetaView(ctk.CTkFrame):
             weight=1
         )
 
-        # ------------------------------------------------------------
+        # ============================================================
         # CPF / CNPJ
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.label_documento = ctk.CTkLabel(
             self.frame_config,
@@ -161,9 +171,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ------------------------------------------------------------
+        # ============================================================
         # TIPO DOCUMENTO
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.label_tipo = ctk.CTkLabel(
             self.frame_config,
@@ -197,9 +207,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ------------------------------------------------------------
+        # ============================================================
         # TIPO DE PAGAMENTO
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.label_pagamento = ctk.CTkLabel(
             self.frame_config,
@@ -236,9 +246,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ------------------------------------------------------------
+        # ============================================================
         # QUANTIDADE DE PÁGINAS
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.label_paginas = ctk.CTkLabel(
             self.frame_config,
@@ -271,9 +281,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ------------------------------------------------------------
+        # ============================================================
         # VALORES VINCULADOS
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.var_vinculados = tk.BooleanVar(
             value=True
@@ -316,9 +326,14 @@ class ColetaView(ctk.CTkFrame):
             weight=1
         )
 
-        # ------------------------------------------------------------
+        self.frame_controles.grid_columnconfigure(
+            1,
+            weight=1
+        )
+
+        # ============================================================
         # BOTÃO INICIAR
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.botao_iniciar = ctk.CTkButton(
             self.frame_controles,
@@ -334,9 +349,9 @@ class ColetaView(ctk.CTkFrame):
             sticky="ew"
         )
 
-        # ------------------------------------------------------------
+        # ============================================================
         # BOTÃO EXCEL
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.botao_excel = ctk.CTkButton(
             self.frame_controles,
@@ -351,7 +366,8 @@ class ColetaView(ctk.CTkFrame):
         self.botao_excel.grid(
             row=0,
             column=1,
-            padx=(10, 0)
+            padx=(10, 0),
+            sticky="ew"
         )
 
         # ============================================================
@@ -427,12 +443,6 @@ class ColetaView(ctk.CTkFrame):
             sticky="nsew"
         )
 
-        # Ajuste do grid para o log crescer
-        self.grid_rowconfigure(
-            6,
-            weight=1
-        )
-
     # ================================================================
     # LOG
     # ================================================================
@@ -440,14 +450,20 @@ class ColetaView(ctk.CTkFrame):
     def adicionar_log(self, mensagem):
 
         def atualizar():
-            self.text_log.insert(
-                "end",
-                mensagem + "\n"
-            )
 
-            self.text_log.see(
-                "end"
-            )
+            try:
+
+                self.text_log.insert(
+                    "end",
+                    mensagem + "\n"
+                )
+
+                self.text_log.see(
+                    "end"
+                )
+
+            except Exception:
+                pass
 
         self.after(
             0,
@@ -460,11 +476,20 @@ class ColetaView(ctk.CTkFrame):
 
     def atualizar_status(self, mensagem):
 
+        def atualizar():
+
+            try:
+
+                self.label_status.configure(
+                    text=mensagem
+                )
+
+            except Exception:
+                pass
+
         self.after(
             0,
-            lambda: self.label_status.configure(
-                text=mensagem
-            )
+            atualizar
         )
 
     # ================================================================
@@ -483,9 +508,7 @@ class ColetaView(ctk.CTkFrame):
 
         self.after(
             0,
-            lambda: self.progress.set(
-                valor
-            )
+            lambda valor=valor: self.progress.set(valor)
         )
 
     # ================================================================
@@ -500,9 +523,9 @@ class ColetaView(ctk.CTkFrame):
 
         paginas_texto = self.entry_paginas.get().strip()
 
-        # ------------------------------------------------------------
+        # ============================================================
         # VALIDAÇÃO DOCUMENTO
-        # ------------------------------------------------------------
+        # ============================================================
 
         documento = re.sub(
             r"\D",
@@ -511,51 +534,71 @@ class ColetaView(ctk.CTkFrame):
         )
 
         if not documento:
+
             messagebox.showwarning(
                 "Documento",
                 "Digite um CPF ou CNPJ."
             )
+
             return
 
         if tipo_documento == "CPF" and len(documento) != 11:
+
             messagebox.showwarning(
                 "CPF inválido",
                 "O CPF deve possuir 11 dígitos."
             )
+
             return
 
         if tipo_documento == "CNPJ" and len(documento) != 14:
+
             messagebox.showwarning(
                 "CNPJ inválido",
                 "O CNPJ deve possuir 14 dígitos."
             )
+
             return
 
-        # ------------------------------------------------------------
+        # ============================================================
         # VALIDAÇÃO PÁGINAS
-        # ------------------------------------------------------------
+        # ============================================================
 
         try:
+
             paginas = int(
                 paginas_texto
             )
+
         except ValueError:
+
             messagebox.showwarning(
                 "Quantidade de páginas",
                 "Informe uma quantidade válida de páginas."
             )
+
             return
 
         if paginas < 1:
+
             messagebox.showwarning(
                 "Quantidade de páginas",
                 "A quantidade de páginas deve ser maior que zero."
             )
+
             return
 
-        # ------------------------------------------------------------
+        # ============================================================
+        # CAPTURA CONFIGURAÇÕES
+        # ============================================================
+
+        tipo_pagamento = self.combo_pagamento.get()
+
+        somente_vinculados = self.var_vinculados.get()
+
+        # ============================================================
         # PREPARA INTERFACE
-        # ------------------------------------------------------------
+        # ============================================================
 
         self.botao_iniciar.configure(
             state="disabled",
@@ -577,17 +620,21 @@ class ColetaView(ctk.CTkFrame):
 
         self.caminho_excel = None
         self.dados = []
+        self.total_trf5 = 0
+        self.processos_coletados = 0
 
-        # ------------------------------------------------------------
+        # ============================================================
         # THREAD
-        # ------------------------------------------------------------
+        # ============================================================
 
         thread = threading.Thread(
             target=self.executar_coleta,
             args=(
                 documento,
                 tipo_documento,
-                paginas
+                paginas,
+                tipo_pagamento,
+                somente_vinculados
             ),
             daemon=True
         )
@@ -602,10 +649,16 @@ class ColetaView(ctk.CTkFrame):
         self,
         documento,
         tipo_documento,
-        paginas
+        paginas,
+        tipo_pagamento,
+        somente_vinculados
     ):
 
         try:
+
+            # ========================================================
+            # CABEÇALHO
+            # ========================================================
 
             self.adicionar_log(
                 "=" * 60
@@ -631,6 +684,19 @@ class ColetaView(ctk.CTkFrame):
                 f"Páginas: {paginas}"
             )
 
+            self.adicionar_log(
+                f"Tipo de pagamento: {tipo_pagamento}"
+            )
+
+            self.adicionar_log(
+                f"Somente vinculados: "
+                f"{'Sim' if somente_vinculados else 'Não'}"
+            )
+
+            # ========================================================
+            # STATUS
+            # ========================================================
+
             self.atualizar_status(
                 "Criando serviço TRF5..."
             )
@@ -649,7 +715,7 @@ class ColetaView(ctk.CTkFrame):
             )
 
             # ========================================================
-            # COLETA
+            # CONSULTA
             # ========================================================
 
             self.atualizar_status(
@@ -663,6 +729,10 @@ class ColetaView(ctk.CTkFrame):
             self.adicionar_log(
                 "Iniciando coleta das páginas..."
             )
+
+            # ========================================================
+            # COLETA
+            # ========================================================
 
             resultado = service.coletar_processos(
                 documento=documento,
@@ -698,6 +768,10 @@ class ColetaView(ctk.CTkFrame):
                     processos
                 )
 
+            # ========================================================
+            # SALVA DADOS
+            # ========================================================
+
             self.dados = processos
 
             self.processos_coletados = len(
@@ -705,7 +779,7 @@ class ColetaView(ctk.CTkFrame):
             )
 
             # ========================================================
-            # LOG
+            # LOG RESULTADO
             # ========================================================
 
             self.adicionar_log(
@@ -767,9 +841,9 @@ class ColetaView(ctk.CTkFrame):
 
                 exporter = ExcelExporter()
 
-                # ----------------------------------------------------
-                # Tenta utilizar a interface existente do exporter.
-                # ----------------------------------------------------
+                # ====================================================
+                # EXPORTAR
+                # ====================================================
 
                 if hasattr(
                     exporter,
@@ -796,6 +870,10 @@ class ColetaView(ctk.CTkFrame):
                         "um método de exportação conhecido."
                     )
 
+                # ====================================================
+                # SALVA CAMINHO
+                # ====================================================
+
                 self.caminho_excel = caminho
 
                 self.adicionar_log(
@@ -805,6 +883,10 @@ class ColetaView(ctk.CTkFrame):
                 self.atualizar_status(
                     "Consulta concluída com sucesso."
                 )
+
+                # ====================================================
+                # HABILITA BOTÃO
+                # ====================================================
 
                 self.after(
                     0,
@@ -822,6 +904,10 @@ class ColetaView(ctk.CTkFrame):
                 self.adicionar_log(
                     "[AVISO] Nenhum processo foi encontrado."
                 )
+
+        # ============================================================
+        # ERRO
+        # ============================================================
 
         except Exception as e:
 
@@ -859,14 +945,26 @@ class ColetaView(ctk.CTkFrame):
                 "Erro durante a coleta."
             )
 
+            # ========================================================
+            # CORREÇÃO DO LAMBDA
+            # ========================================================
+
+            mensagem_erro = str(e)
+
             self.after(
                 0,
-                lambda: messagebox.showerror(
-                    "Erro na coleta",
-                    f"Não foi possível concluir a consulta.\n\n"
-                    f"{e}"
-                )
+                lambda mensagem_erro=mensagem_erro:
+                    messagebox.showerror(
+                        "Erro na coleta",
+                        "Não foi possível concluir "
+                        "a consulta.\n\n"
+                        f"{mensagem_erro}"
+                    )
             )
+
+        # ============================================================
+        # FINALMENTE
+        # ============================================================
 
         finally:
 
@@ -885,10 +983,12 @@ class ColetaView(ctk.CTkFrame):
     def abrir_excel(self):
 
         if not self.caminho_excel:
+
             messagebox.showwarning(
                 "Excel",
                 "Nenhum arquivo Excel foi gerado."
             )
+
             return
 
         try:
@@ -896,10 +996,12 @@ class ColetaView(ctk.CTkFrame):
             if not os.path.exists(
                 self.caminho_excel
             ):
+
                 messagebox.showerror(
                     "Excel",
                     "O arquivo Excel não foi encontrado."
                 )
+
                 return
 
             os.startfile(

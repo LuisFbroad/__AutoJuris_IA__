@@ -1,0 +1,7 @@
+customtkinter
+darkdetect
+Pillow
+requests
+beautifulsoup4
+openpyxl
+python-dotenv'
