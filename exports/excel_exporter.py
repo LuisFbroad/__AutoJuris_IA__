@@ -1,3 +1,6 @@
+import os
+from datetime import datetime
+
 from openpyxl import Workbook
 from openpyxl.styles import (
     Font,
@@ -6,7 +9,6 @@ from openpyxl.styles import (
     Border,
     Side
 )
-from openpyxl.utils import get_column_letter
 
 
 class ExcelExporter:
@@ -19,11 +21,12 @@ class ExcelExporter:
             "Proc. Originário",
             "Vara",
             "Banco",
-            "Nº RPV"
+            "Nº RPV",
+            "Coletado em"
         ]
 
     # ============================================================
-    # CONVERTER BANCO
+    # FORMATAR BANCO
     # ============================================================
 
     def formatar_banco(self, banco):
@@ -45,10 +48,21 @@ class ExcelExporter:
         if "CAIXA" in banco:
             return "CEF"
 
-        if "BANCO DO BRASIL" in banco:
-            return "BB"
-
         return banco
+
+    # ============================================================
+    # GERAR NOME DO ARQUIVO
+    # ============================================================
+
+    def gerar_nome_arquivo(self):
+
+        data_hora = datetime.now().strftime(
+            "%Y-%m-%d_%H%M%S"
+        )
+
+        return (
+            f"relatorio_rpv_{data_hora}.xlsx"
+        )
 
     # ============================================================
     # EXPORTAR
@@ -57,8 +71,20 @@ class ExcelExporter:
     def exportar(
         self,
         dados,
-        caminho="relatorio_rpv.xlsx"
+        caminho=None
     ):
+
+        # ========================================================
+        # NOME DO ARQUIVO
+        # ========================================================
+
+        if caminho is None:
+
+            caminho = self.gerar_nome_arquivo()
+
+        # ========================================================
+        # CRIAR WORKBOOK
+        # ========================================================
 
         workbook = Workbook()
 
@@ -153,8 +179,6 @@ class ExcelExporter:
 
             celula.border = borda
 
-        # Altura do cabeçalho
-
         sheet.row_dimensions[1].height = 25
 
         # ========================================================
@@ -167,7 +191,7 @@ class ExcelExporter:
         ):
 
             # ----------------------------------------------------
-            # DADOS
+            # DADOS DO PROCESSO
             # ----------------------------------------------------
 
             nome = processo.get(
@@ -205,10 +229,19 @@ class ExcelExporter:
                 ""
             )
 
+            data_hora_coleta = processo.get(
+                "data_hora_coleta",
+                ""
+            )
+
             link = processo.get(
                 "link",
                 ""
             )
+
+            # ----------------------------------------------------
+            # VALORES
+            # ----------------------------------------------------
 
             valores = [
                 nome,
@@ -216,7 +249,8 @@ class ExcelExporter:
                 processo_originario,
                 vara,
                 banco,
-                rpv
+                rpv,
+                data_hora_coleta
             ]
 
             # ----------------------------------------------------
@@ -243,17 +277,16 @@ class ExcelExporter:
                     vertical="center"
                 )
 
-                # ------------------------------------------------
-                # LINHAS ALTERNADAS
-                # ------------------------------------------------
-
                 if linha % 2 == 0:
+
                     celula.fill = preenchimento_par
+
                 else:
+
                     celula.fill = preenchimento_impar
 
             # ----------------------------------------------------
-            # PROCESSO COMO LINK
+            # LINK DO PROCESSO
             # ----------------------------------------------------
 
             celula_processo = sheet.cell(
@@ -273,64 +306,42 @@ class ExcelExporter:
                 )
 
             # ----------------------------------------------------
-            # ALINHAMENTO CENTRAL
+            # ALINHAMENTO
             # ----------------------------------------------------
 
-            sheet.cell(
-                row=linha,
-                column=2
-            ).alignment = Alignment(
-                horizontal="center",
-                vertical="center"
-            )
+            for coluna in range(
+                2,
+                8
+            ):
 
-            sheet.cell(
-                row=linha,
-                column=3
-            ).alignment = Alignment(
-                horizontal="center",
-                vertical="center"
-            )
+                sheet.cell(
+                    row=linha,
+                    column=coluna
+                ).alignment = Alignment(
+                    horizontal="center",
+                    vertical="center"
+                )
 
-            sheet.cell(
-                row=linha,
-                column=4
-            ).alignment = Alignment(
-                horizontal="center",
-                vertical="center"
-            )
+            # ----------------------------------------------------
+            # ALTURA
+            # ----------------------------------------------------
 
-            sheet.cell(
-                row=linha,
-                column=5
-            ).alignment = Alignment(
-                horizontal="center",
-                vertical="center"
-            )
-
-            sheet.cell(
-                row=linha,
-                column=6
-            ).alignment = Alignment(
-                horizontal="center",
-                vertical="center"
-            )
-
-            # Altura da linha
-
-            sheet.row_dimensions[linha].height = 22
+            sheet.row_dimensions[
+                linha
+            ].height = 22
 
         # ========================================================
         # LARGURA DAS COLUNAS
         # ========================================================
 
         larguras = {
-            "A": 35,  # Nome
-            "B": 25,  # Número Processo
-            "C": 25,  # Processo Originário
-            "D": 18,  # Vara
-            "E": 10,  # Banco
-            "F": 20   # RPV
+            "A": 35,
+            "B": 25,
+            "C": 25,
+            "D": 18,
+            "E": 10,
+            "F": 20,
+            "G": 22
         }
 
         for coluna, largura in larguras.items():
@@ -352,35 +363,47 @@ class ExcelExporter:
         if sheet.max_row >= 1:
 
             sheet.auto_filter.ref = (
-                f"A1:F{sheet.max_row}"
+                f"A1:G{sheet.max_row}"
             )
 
         # ========================================================
-        # CONFIGURAÇÕES DA PLANILHA
+        # CONFIGURAÇÕES
         # ========================================================
 
         sheet.sheet_view.showGridLines = False
 
-        # ========================================================
-        # TÍTULO / ABA
-        # ========================================================
-
         sheet.sheet_properties.pageSetUpPr.fitToPage = True
 
         sheet.page_setup.fitToWidth = 1
+
         sheet.page_setup.fitToHeight = 0
 
         # ========================================================
         # SALVAR
         # ========================================================
 
-        workbook.save(caminho)
+        try:
+
+            workbook.save(
+                caminho
+            )
+
+        except PermissionError:
+
+            raise PermissionError(
+                f"O arquivo '{caminho}' está aberto "
+                f"ou sendo utilizado por outro programa.\n\n"
+                f"Feche o arquivo Excel e tente novamente."
+            )
+
+        # ========================================================
+        # CONFIRMAÇÃO
+        # ========================================================
 
         print(
             f"\n[OK] Excel salvo em: {caminho}"
         )
 
-        # MUITO IMPORTANTE:
-        # retornar o caminho para o ColetaView
-
-        return caminho
+        return os.path.abspath(
+            caminho
+        )

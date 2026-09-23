@@ -4,6 +4,7 @@ import threading
 import traceback
 import tkinter as tk
 from tkinter import messagebox
+from datetime import datetime
 
 import customtkinter as ctk
 
@@ -24,6 +25,7 @@ class ColetaView(ctk.CTkFrame):
         self.caminho_excel = None
         self.total_trf5 = 0
         self.processos_coletados = 0
+        self.data_hora_coleta = None
 
         # ============================================================
         # CONFIGURAÇÃO
@@ -622,6 +624,7 @@ class ColetaView(ctk.CTkFrame):
         self.dados = []
         self.total_trf5 = 0
         self.processos_coletados = 0
+        self.data_hora_coleta = None
 
         # ============================================================
         # THREAD
@@ -655,6 +658,14 @@ class ColetaView(ctk.CTkFrame):
     ):
 
         try:
+
+            # ========================================================
+            # DATA E HORA DA COLETA
+            # ========================================================
+
+            self.data_hora_coleta = datetime.now().strftime(
+                "%d/%m/%Y %H:%M:%S"
+            )
 
             # ========================================================
             # CABEÇALHO
@@ -691,6 +702,11 @@ class ColetaView(ctk.CTkFrame):
             self.adicionar_log(
                 f"Somente vinculados: "
                 f"{'Sim' if somente_vinculados else 'Não'}"
+            )
+
+            self.adicionar_log(
+                f"Coleta iniciada em: "
+                f"{self.data_hora_coleta}"
             )
 
             # ========================================================
@@ -769,6 +785,18 @@ class ColetaView(ctk.CTkFrame):
                 )
 
             # ========================================================
+            # REGISTRA DATA/HORA EM TODOS OS PROCESSOS
+            # ========================================================
+
+            for processo in processos:
+
+                if isinstance(processo, dict):
+
+                    processo["data_hora_coleta"] = (
+                        self.data_hora_coleta
+                    )
+
+            # ========================================================
             # SALVA DADOS
             # ========================================================
 
@@ -806,6 +834,11 @@ class ColetaView(ctk.CTkFrame):
             self.adicionar_log(
                 f"Processos coletados: "
                 f"{self.processos_coletados}"
+            )
+
+            self.adicionar_log(
+                f"Coletado em: "
+                f"{self.data_hora_coleta}"
             )
 
             # ========================================================
@@ -944,10 +977,6 @@ class ColetaView(ctk.CTkFrame):
             self.atualizar_status(
                 "Erro durante a coleta."
             )
-
-            # ========================================================
-            # CORREÇÃO DO LAMBDA
-            # ========================================================
 
             mensagem_erro = str(e)
 
