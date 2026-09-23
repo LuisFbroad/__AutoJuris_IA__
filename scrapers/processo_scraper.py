@@ -1,57 +1,56 @@
 import os
+
 import re
+
 import requests
 
 from bs4 import BeautifulSoup
 
 from concurrent.futures import (
-    ThreadPoolExecutor,
-    as_completed
+ThreadPoolExecutor,
+as_completed
 )
 
 from scrapers.extractors.processo_extractor import (
-    ProcessoExtractor
+ProcessoExtractor
 )
 
 from scrapers.extractors.rpv_extractor import (
-    RPVExtractor
+RPVExtractor
 )
 
 from scrapers.extractors.dados_extractor import (
-    DadosExtractor
+DadosExtractor
+)
+
+from scrapers.extractors.fase_extractor import (
+FaseExtractor
 )
 
 from validators.processo_validator import (
-    ProcessoValidator
+ProcessoValidator
 )
 
-
 ESTADOS_BRASIL = {
-    "PERNAMBUCO": "PE",
-    "RECIFE": "PE",
-    "CABO DE SANTO AGOSTINHO": "PE",
-    "CABO": "PE",
-
-    "ALAGOAS": "AL",
-    "MACEIÓ": "AL",
-    "MACEIO": "AL",
-
-    "CEARÁ": "CE",
-    "CEARA": "CE",
-    "FORTALEZA": "CE",
-
-    "SERGIPE": "SE",
-    "ARACAJU": "SE",
-
-    "RIO GRANDE DO NORTE": "RN",
-    "NATAL": "RN",
-
-    "PARAÍBA": "PB",
-    "PARAIBA": "PB",
-    "JOÃO PESSOA": "PB",
-    "JOAO PESSOA": "PB"
+"PERNAMBUCO": "PE",
+"RECIFE": "PE",
+"CABO DE SANTO AGOSTINHO": "PE",
+"CABO": "PE",
+"ALAGOAS": "AL",
+"MACEIÓ": "AL",
+"MACEIO": "AL",
+"CEARÁ": "CE",
+"CEARA": "CE",
+"FORTALEZA": "CE",
+"SERGIPE": "SE",
+"ARACAJU": "SE",
+"RIO GRANDE DO NORTE": "RN",
+"NATAL": "RN",
+"PARAÍBA": "PB",
+"PARAIBA": "PB",
+"JOÃO PESSOA": "PB",
+"JOAO PESSOA": "PB"
 }
-
 
 class ProcessoScraper:
 
@@ -103,6 +102,10 @@ class ProcessoScraper:
 
         self.dados_extractor = (
             DadosExtractor()
+        )
+
+        self.fase_extractor = (
+            FaseExtractor()
         )
 
     # =========================================================
@@ -196,6 +199,19 @@ class ProcessoScraper:
             )
 
             # =================================================
+            # FASE ATUAL
+            # =================================================
+
+            fase = (
+                self.fase_extractor.extrair(
+                    soup,
+                    texto
+                )
+            )
+
+            dados["fase_atual"] = fase
+
+            # =================================================
             # VARA FORMATADA
             # =================================================
 
@@ -254,6 +270,8 @@ class ProcessoScraper:
                 f"{dados.get('processo', '')} | "
                 f"{dados.get('rpv', '')} | "
                 f"{dados.get('nome', '')} | "
+                f"Fase: "
+                f"{dados.get('fase_atual', '')} | "
                 f"Confiança: "
                 f"{dados.get('confianca', 0):.0%}"
             )
@@ -279,32 +297,43 @@ class ProcessoScraper:
     def _dados_vazios(url):
 
         return {
+
             "link": url,
 
             "processo": "",
+
             "processo_originario": "",
 
             "rpv": "",
+
             "nome": "",
 
             "vara": "",
+
             "banco": "",
 
             "data_decisao": "",
 
             "data_movimento": "",
+
             "hora_movimento": "",
 
             "situacao": "",
 
+            "fase_atual": "",
+
             "origem_processo": "",
+
             "origem_rpv": "",
 
             "processo_valido": False,
+
             "rpv_valida": False,
+
             "nome_valido": False,
 
             "confianca": 0.0,
+
             "nivel_confianca": "BAIXA",
 
             "erro": ""
@@ -346,12 +375,14 @@ class ProcessoScraper:
         ) as executor:
 
             futuros = {
+
                 executor.submit(
                     self.extrair_detalhes_processo,
                     processo.get("link", "")
                 ): processo
 
                 for processo in lista_processos
+
                 if processo.get("link")
             }
 
@@ -369,17 +400,26 @@ class ProcessoScraper:
                         futuro.result()
                     )
 
-                    # Mantém dados da listagem
-                    # caso a página de detalhes
-                    # não contenha algum deles.
+                    # =================================================
+                    # MANTER DADOS DA LISTAGEM
+                    # =================================================
 
                     for campo in [
+
                         "processo",
+
                         "rpv",
+
                         "data_movimento",
+
                         "hora_movimento",
+
                         "situacao",
+
+                        "fase_atual",
+
                         "link"
+
                     ]:
 
                         if not detalhes.get(campo):
@@ -429,12 +469,13 @@ class ProcessoScraper:
                 exist_ok=True
             )
 
-            processo = self._extrair_id_url(
-                url
+            processo = (
+                self._extrair_id_url(
+                    url
+                )
             )
 
             if not processo:
-
                 processo = "pagina"
 
             caminho = os.path.join(
@@ -472,6 +513,7 @@ class ProcessoScraper:
         )
 
         if match:
+
             return (
                 match.group(1)
                 .replace(".", "_")
@@ -520,6 +562,7 @@ class ProcessoScraper:
             if termo in vara_limpa:
 
                 estado = sigla
+
                 break
 
         if numero and estado:

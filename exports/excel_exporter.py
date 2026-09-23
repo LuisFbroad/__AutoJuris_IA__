@@ -1,4 +1,5 @@
 import os
+
 from datetime import datetime
 
 from openpyxl import Workbook
@@ -22,8 +23,33 @@ class ExcelExporter:
             "Vara",
             "Banco",
             "Nº RPV",
+            "FASE ATUAL",
             "Coletado em"
         ]
+
+    # ============================================================
+    # PASTA DE SAÍDA
+    # ============================================================
+
+    def obter_pasta_saida(self):
+
+        pasta_projeto = os.path.dirname(
+            os.path.dirname(
+                os.path.abspath(__file__)
+            )
+        )
+
+        pasta_saida = os.path.join(
+            pasta_projeto,
+            "output"
+        )
+
+        os.makedirs(
+            pasta_saida,
+            exist_ok=True
+        )
+
+        return pasta_saida
 
     # ============================================================
     # FORMATAR BANCO
@@ -60,7 +86,8 @@ class ExcelExporter:
             "%Y-%m-%d_%H%M%S"
         )
 
-        return (
+        return os.path.join(
+            self.obter_pasta_saida(),
             f"relatorio_rpv_{data_hora}.xlsx"
         )
 
@@ -79,8 +106,20 @@ class ExcelExporter:
         # ========================================================
 
         if caminho is None:
-
             caminho = self.gerar_nome_arquivo()
+
+        # ========================================================
+        # GARANTIR QUE A PASTA EXISTE
+        # ========================================================
+
+        pasta = os.path.dirname(
+            os.path.abspath(caminho)
+        )
+
+        os.makedirs(
+            pasta,
+            exist_ok=True
+        )
 
         # ========================================================
         # CRIAR WORKBOOK
@@ -229,6 +268,11 @@ class ExcelExporter:
                 ""
             )
 
+            fase_atual = processo.get(
+                "fase_atual",
+                ""
+            )
+
             data_hora_coleta = processo.get(
                 "data_hora_coleta",
                 ""
@@ -250,6 +294,7 @@ class ExcelExporter:
                 vara,
                 banco,
                 rpv,
+                fase_atual,
                 data_hora_coleta
             ]
 
@@ -278,11 +323,8 @@ class ExcelExporter:
                 )
 
                 if linha % 2 == 0:
-
                     celula.fill = preenchimento_par
-
                 else:
-
                     celula.fill = preenchimento_impar
 
             # ----------------------------------------------------
@@ -311,7 +353,7 @@ class ExcelExporter:
 
             for coluna in range(
                 2,
-                8
+                9
             ):
 
                 sheet.cell(
@@ -341,7 +383,8 @@ class ExcelExporter:
             "D": 18,
             "E": 10,
             "F": 20,
-            "G": 22
+            "G": 30,
+            "H": 22
         }
 
         for coluna, largura in larguras.items():
@@ -363,7 +406,7 @@ class ExcelExporter:
         if sheet.max_row >= 1:
 
             sheet.auto_filter.ref = (
-                f"A1:G{sheet.max_row}"
+                f"A1:H{sheet.max_row}"
             )
 
         # ========================================================
@@ -400,10 +443,12 @@ class ExcelExporter:
         # CONFIRMAÇÃO
         # ========================================================
 
-        print(
-            f"\n[OK] Excel salvo em: {caminho}"
-        )
-
-        return os.path.abspath(
+        caminho_absoluto = os.path.abspath(
             caminho
         )
+
+        print(
+            f"\n[OK] Excel salvo em: {caminho_absoluto}"
+        )
+
+        return caminho_absoluto
