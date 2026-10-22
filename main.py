@@ -18,9 +18,7 @@ class App(ctk.CTk):
         self.largura = 1100
         self.altura = 700
 
-        self.geometry(
-            f"{self.largura}x{self.altura}"
-        )
+        self.geometry(f"{self.largura}x{self.altura}")
 
         self.minsize(900, 600)
 
@@ -30,10 +28,7 @@ class App(ctk.CTk):
         self.login_view = None
         self.coleta_view = None
 
-        self.protocol(
-            "WM_DELETE_WINDOW",
-            self.fechar_aplicacao
-        )
+        self.protocol("WM_DELETE_WINDOW", self.fechar_aplicacao)
 
         self.mostrar_login()
 
@@ -44,17 +39,11 @@ class App(ctk.CTk):
         largura_tela = self.winfo_screenwidth()
         altura_tela = self.winfo_screenheight()
 
-        x = (
-            largura_tela - self.largura
-        ) // 2
+        x = (largura_tela - self.largura) // 2
 
-        y = (
-            altura_tela - self.altura
-        ) // 2
+        y = (altura_tela - self.altura) // 2
 
-        self.geometry(
-            f"{self.largura}x{self.altura}+{x}+{y}"
-        )
+        self.geometry(f"{self.largura}x{self.altura}+{x}+{y}")
 
     def limpar_janela(self):
 
@@ -64,9 +53,7 @@ class App(ctk.CTk):
                 widget.destroy()
 
             except Exception as e:
-                print(
-                    f"[AVISO] Erro ao destruir widget: {e}"
-                )
+                print(f"[AVISO] Erro ao destruir widget: {e}")
 
         self.update_idletasks()
 
@@ -78,15 +65,9 @@ class App(ctk.CTk):
 
             self.limpar_janela()
 
-            self.login_view = LoginView(
-                self,
-                self.login_realizado
-            )
+            self.login_view = LoginView(self, self.login_realizado)
 
-            self.login_view.pack(
-                expand=True,
-                fill="both"
-            )
+            self.login_view.pack(expand=True, fill="both")
 
             self.update_idletasks()
 
@@ -94,10 +75,7 @@ class App(ctk.CTk):
 
         except Exception as e:
 
-            self.mostrar_erro(
-                "Erro ao carregar a tela de login",
-                e
-            )
+            self.mostrar_erro("Erro ao carregar a tela de login", e)
 
     def login_realizado(self, usuario):
 
@@ -119,12 +97,7 @@ class App(ctk.CTk):
 
             print("[APP] ColetaView criada.")
 
-            nova_tela.pack(
-                expand=True,
-                fill="both",
-                padx=15,
-                pady=15
-            )
+            nova_tela.pack(expand=True, fill="both", padx=15, pady=15)
 
             self.update_idletasks()
 
@@ -140,10 +113,7 @@ class App(ctk.CTk):
                 except Exception:
                     pass
 
-            self.mostrar_erro(
-                "Erro ao carregar a tela principal",
-                e
-            )
+            self.mostrar_erro("Erro ao carregar a tela principal", e)
 
             return
 
@@ -153,9 +123,7 @@ class App(ctk.CTk):
                 self.login_view.destroy()
 
             except Exception as e:
-                print(
-                    f"[AVISO] Erro ao remover login: {e}"
-                )
+                print(f"[AVISO] Erro ao remover login: {e}")
 
         self.login_view = None
         self.coleta_view = nova_tela
@@ -180,10 +148,7 @@ class App(ctk.CTk):
 
         try:
 
-            messagebox.showerror(
-                titulo,
-                str(erro)
-            )
+            messagebox.showerror(titulo, str(erro))
 
         except Exception:
             pass
@@ -235,10 +200,7 @@ def main():
 
         try:
 
-            messagebox.showerror(
-                "Erro fatal - AutoJuris IA",
-                str(e)
-            )
+            messagebox.showerror("Erro fatal - AutoJuris IA", str(e))
 
         except Exception:
             pass
