@@ -243,59 +243,154 @@ class TRF5Scraper:
             # Não fecha a sessão compartilhada com o scraper principal.
             pass
 
+    
     def buscar_todas_paginas(
         self,
         max_paginas=None,
         extrair_detalhes=True,
         enriquecer_rss=False,
     ):
+        """
+        Percorre as páginas do TRF5 sequencialmente.
+
+        A coleta não depende exclusivamente do total informado pelo site.
+        Processos repetidos são mesclados pelo número CNJ.
+        """
         if max_paginas is not None and int(max_paginas) < 1:
             raise ValueError("max_paginas deve ser positivo ou None.")
+
         buscar = (
-            self.buscar_pagina_com_detalhes if extrair_detalhes else self.buscar_pagina
-        )
-        primeira = buscar(1)
-        total = int(primeira.get("total") or 0)
-        paginas_estimadas = (
-            math.ceil(total / self.processos_por_pagina)
-            if total
-            else (1 if primeira.get("processos") else 0)
-        )
-        total_paginas = (
-            min(paginas_estimadas, int(max_paginas))
-            if max_paginas is not None
-            else paginas_estimadas
+            self.buscar_pagina_com_detalhes
+            if extrair_detalhes
+            else self.buscar_pagina
         )
 
-        todos = list(primeira.get("processos") or [])
-        por_numero = {p.get("processo"): p for p in todos if p.get("processo")}
-        for pagina in range(2, total_paginas + 1):
+        todos = []
+        por_numero = {}
+        total_informado = 0
+        paginas_consultadas = 0
+        paginas_sem_novos = 0
+        assinaturas_vistas = set()
+        pagina = 1
+
+        while max_paginas is None or pagina <= int(max_paginas):
+            # Falhas de rede são propagadas: não declarar uma coleta
+            # completa se uma página não pôde ser consultada.
             resultado = buscar(pagina)
-            for processo in resultado.get("processos") or []:
-                numero = processo.get("processo")
-                if numero and numero in por_numero:
+            paginas_consultadas += 1
+
+            if pagina == 1:
+                total_informado = int(resultado.get("total") or 0)
+
+            processos_pagina = resultado.get("processos") or []
+
+            # Uma página sem processos indica o fim da listagem.
+            if not processos_pagina:
+                logger.info(
+                    "Página %s vazia. Encerrando a coleta.",
+                    pagina,
+                )
+                break
+
+            assinatura = tuple(
+                sorted(
+                    str(p.get("processo") or "")
+                    for p in processos_pagina
+                    if p.get("processo")
+                )
+            )
+
+            # Protege contra sites que devolvem a mesma página
+            # repetidamente, evitando um loop infinito.
+            if assinatura and assinatura in assinaturas_vistas:
+                logger.warning(
+                    "A página %s repetiu os mesmos processos de uma "
+                    "página anterior. A coleta foi interrompida; "
+                    "verifique a paginação do TRF5.",
+                    pagina,
+                )
+                break
+
+            if assinatura:
+                assinaturas_vistas.add(assinatura)
+
+            novos_na_pagina = 0
+
+            for processo in processos_pagina:
+                numero = str(processo.get("processo") or "").strip()
+
+                if not numero:
+                    logger.warning(
+                        "Processo sem número CNJ na página %s; "
+                        "registro ignorado.",
+                        pagina,
+                    )
+                    continue
+
+                if numero not in por_numero:
+                    item = dict(processo)
+                    por_numero[numero] = item
+                    todos.append(item)
+                    novos_na_pagina += 1
+                else:
                     existente = por_numero[numero]
+
+                    # Preserva dados já preenchidos e complementa
+                    # apenas os campos vazios.
                     for chave, valor in processo.items():
                         if existente.get(chave) in (None, "") and valor not in (
                             None,
                             "",
                         ):
                             existente[chave] = valor
-                else:
-                    todos.append(processo)
-                    if numero:
-                        por_numero[numero] = processo
+
+            if novos_na_pagina == 0:
+                paginas_sem_novos += 1
+                logger.warning(
+                    "Página %s não trouxe processos novos. "
+                    "Total acumulado: %s.",
+                    pagina,
+                    len(todos),
+                )
+            else:
+                paginas_sem_novos = 0
+
             logger.info(
-                "Progresso: página %s/%s; acumulado=%s",
+                "Página %s consultada; encontrados=%s; novos=%s; "
+                "acumulado=%s; total informado pelo site=%s.",
                 pagina,
-                total_paginas,
+                len(processos_pagina),
+                novos_na_pagina,
                 len(todos),
+                total_informado,
+            )
+
+            # Não encerrar na primeira página sem novidades: ela pode
+            # conter sobreposição. Duas consecutivas geram alerta e parada.
+            if paginas_sem_novos >= 2:
+                logger.warning(
+                    "Duas páginas consecutivas sem processos novos. "
+                    "Interrompendo para evitar coleta repetitiva."
+                )
+                break
+
+            pagina += 1
+
+        if max_paginas is not None and paginas_consultadas >= int(max_paginas):
+            logger.warning(
+                "Limite de páginas atingido (%s). A coleta pode estar "
+                "incompleta.",
+                max_paginas,
             )
 
         if enriquecer_rss and todos:
             todos = self.enriquecer_com_rss(todos)
 
-        return {"total": total, "total_paginas": total_paginas, "processos": todos}
+        return {
+            "total": total_informado,
+            "total_paginas": paginas_consultadas,
+            "processos": todos,
+        }
 
     @staticmethod
     def comparar_resultados(primeira_busca, segunda_busca):
