@@ -1,15 +1,13 @@
 import customtkinter as ctk
 
 from auth.auth_service import autenticar
+from desktop.tema import CORES, FONTES
 
 
 class LoginView(ctk.CTkFrame):
 
     def __init__(self, parent, on_login):
-        super().__init__(
-            parent,
-            corner_radius=0
-        )
+        super().__init__(parent, corner_radius=0, fg_color=CORES["fundo"])
 
         self.parent = parent
         self.on_login = on_login
@@ -29,20 +27,15 @@ class LoginView(ctk.CTkFrame):
             self,
             width=420,
             height=500,
-            corner_radius=15
+            corner_radius=15,
+            fg_color=CORES["superficie"],
+            border_width=1,
+            border_color=CORES["borda"],
         )
 
-        self.card.grid(
-            row=0,
-            column=0,
-            padx=20,
-            pady=20
-        )
+        self.card.grid(row=0, column=0, padx=20, pady=20)
 
-        self.card.grid_columnconfigure(
-            0,
-            weight=1
-        )
+        self.card.grid_columnconfigure(0, weight=1)
 
         # ----------------------------------------------------
         # TÍTULO
@@ -51,33 +44,20 @@ class LoginView(ctk.CTkFrame):
         titulo = ctk.CTkLabel(
             self.card,
             text="AutoJuris IA",
-            font=ctk.CTkFont(
-                size=30,
-                weight="bold"
-            )
+            font=ctk.CTkFont(family=FONTES["familia"], size=30, weight="bold"),
+            text_color=CORES["texto"],
         )
 
-        titulo.grid(
-            row=0,
-            column=0,
-            padx=40,
-            pady=(45, 5)
-        )
+        titulo.grid(row=0, column=0, padx=40, pady=(45, 5))
 
         subtitulo = ctk.CTkLabel(
             self.card,
             text="Acesso ao sistema",
-            font=ctk.CTkFont(
-                size=14
-            )
+            font=ctk.CTkFont(family=FONTES["familia"], size=14),
+            text_color=CORES["texto_secundario"],
         )
 
-        subtitulo.grid(
-            row=1,
-            column=0,
-            padx=40,
-            pady=(0, 30)
-        )
+        subtitulo.grid(row=1, column=0, padx=40, pady=(0, 30))
 
         # ----------------------------------------------------
         # USUÁRIO
@@ -87,15 +67,11 @@ class LoginView(ctk.CTkFrame):
             self.card,
             width=300,
             height=42,
-            placeholder_text="Usuário"
+            placeholder_text="Usuário",
+            border_color=CORES["borda"],
         )
 
-        self.usuario_entry.grid(
-            row=2,
-            column=0,
-            padx=40,
-            pady=10
-        )
+        self.usuario_entry.grid(row=2, column=0, padx=40, pady=10)
 
         # ----------------------------------------------------
         # SENHA
@@ -106,32 +82,19 @@ class LoginView(ctk.CTkFrame):
             width=300,
             height=42,
             placeholder_text="Senha",
-            show="*"
+            show="*",
+            border_color=CORES["borda"],
         )
 
-        self.senha_entry.grid(
-            row=3,
-            column=0,
-            padx=40,
-            pady=10
-        )
+        self.senha_entry.grid(row=3, column=0, padx=40, pady=10)
 
         # ----------------------------------------------------
         # MENSAGEM
         # ----------------------------------------------------
 
-        self.mensagem = ctk.CTkLabel(
-            self.card,
-            text="",
-            wraplength=300
-        )
+        self.mensagem = ctk.CTkLabel(self.card, text="", wraplength=300)
 
-        self.mensagem.grid(
-            row=4,
-            column=0,
-            padx=40,
-            pady=10
-        )
+        self.mensagem.grid(row=4, column=0, padx=40, pady=10)
 
         # ----------------------------------------------------
         # BOTÃO ENTRAR
@@ -142,29 +105,20 @@ class LoginView(ctk.CTkFrame):
             text="ENTRAR",
             width=300,
             height=42,
-            command=self.entrar
+            fg_color=CORES["primaria"],
+            hover_color=CORES["primaria_hover"],
+            command=self.entrar,
         )
 
-        self.botao_entrar.grid(
-            row=5,
-            column=0,
-            padx=40,
-            pady=(10, 20)
-        )
+        self.botao_entrar.grid(row=5, column=0, padx=40, pady=(10, 20))
 
         # ----------------------------------------------------
         # ENTER
         # ----------------------------------------------------
 
-        self.senha_entry.bind(
-            "<Return>",
-            lambda event: self.entrar()
-        )
+        self.senha_entry.bind("<Return>", lambda event: self.entrar())
 
-        self.usuario_entry.bind(
-            "<Return>",
-            lambda event: self.senha_entry.focus()
-        )
+        self.usuario_entry.bind("<Return>", lambda event: self.senha_entry.focus())
 
         self.usuario_entry.focus()
 
@@ -179,29 +133,20 @@ class LoginView(ctk.CTkFrame):
 
         if not usuario or not senha:
 
-            self.mostrar_mensagem(
-                "Informe usuário e senha."
-            )
+            self.mostrar_mensagem("Informe usuário e senha.")
 
             return
 
         # Desabilita o botão enquanto processa
-        self.botao_entrar.configure(
-            state="disabled"
-        )
+        self.botao_entrar.configure(state="disabled")
 
         try:
 
-            resultado = autenticar(
-                usuario,
-                senha
-            )
+            resultado = autenticar(usuario, senha)
 
             if resultado:
 
-                self.mensagem.configure(
-                    text=""
-                )
+                self.mensagem.configure(text="")
 
                 print("================================")
                 print("LOGIN REALIZADO COM SUCESSO")
@@ -218,20 +163,13 @@ class LoginView(ctk.CTkFrame):
 
                 print("Login recusado.")
 
-                self.mostrar_mensagem(
-                    "Usuário ou senha inválidos."
-                )
+                self.mostrar_mensagem("Usuário ou senha inválidos.")
 
-                self.senha_entry.delete(
-                    0,
-                    "end"
-                )
+                self.senha_entry.delete(0, "end")
 
                 self.senha_entry.focus()
 
-                self.botao_entrar.configure(
-                    state="normal"
-                )
+                self.botao_entrar.configure(state="normal")
 
         except Exception as e:
 
@@ -241,13 +179,9 @@ class LoginView(ctk.CTkFrame):
             print(str(e))
             print("================================")
 
-            self.mostrar_mensagem(
-                f"Erro ao realizar login:\n{e}"
-            )
+            self.mostrar_mensagem(f"Erro ao realizar login:\n{e}")
 
-            self.botao_entrar.configure(
-                state="normal"
-            )
+            self.botao_entrar.configure(state="normal")
 
     # ========================================================
     # MENSAGEM
@@ -255,6 +189,4 @@ class LoginView(ctk.CTkFrame):
 
     def mostrar_mensagem(self, mensagem):
 
-        self.mensagem.configure(
-            text=mensagem
-        )
+        self.mensagem.configure(text=mensagem)
